@@ -23,6 +23,12 @@ Read `docs/product-brief.md` first. It's the source of truth for what we're buil
 - **Performance:** no heavy libraries without need; lazy-load the reader's 3D/sound assets; images through `next/image`.
 - **Bilingual:** all UI strings go through the i18n layer (Hindi and English). Devanagari text uses Devanagari fonts.
 
+## Working across epics (contract first)
+- Epics can run in parallel. When your story needs data or an endpoint another epic hasn't merged yet, don't wait.
+- Shared shapes live in `src/contracts/`: TypeScript types, zod schemas, endpoint request/response, table columns. If a contract exists, use it exactly. If it doesn't, create it from the card and the product brief.
+- Build against a stand-in (in-memory fake or seeded fixture) behind the same interface. When the real one lands, a follow-up story swaps it in; nothing else changes.
+- Never change an existing contract inside an unrelated story. A contract change is its own story.
+
 ## Data and security
 - Every table has Row Level Security. Policies are written and tested with the migration that adds the table.
 - Schema changes only as new SQL migrations in `supabase/migrations`. Never edit an applied migration. Migrations only add or change; they never drop user data.
