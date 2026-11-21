@@ -35,13 +35,20 @@ export const theme = {
     lg: "1rem",
     full: "9999px",
   },
-  // Stacks only; web fonts are loaded by the reader epic. Every stack carries a
-  // Devanagari-capable fallback so Hindi text renders in a Devanagari face today.
+  // Every stack carries a Devanagari-capable fallback so Hindi text always renders in a
+  // Devanagari face. `latin` and `devanagari` are the UI faces, applied by script in
+  // globals.css; they start with the self-hosted fonts that src/app/fonts.ts loads (the
+  // `--font-face-*` variables, with their family names as fallbacks where those are unset).
+  // Each also lists the other script's face, for mixed text such as the brand on a Hindi page.
+  // Book handwriting fonts belong to the reader epic.
   font: {
     serif:
       '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif Devanagari", "Kohinoor Devanagari", Mangal, serif',
+    latin:
+      'var(--font-face-latin, "Noto Serif"), var(--font-face-devanagari, "Noto Serif Devanagari"), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Kohinoor Devanagari", Mangal, serif',
     sans: 'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Devanagari", "Kohinoor Devanagari", "Nirmala UI", sans-serif',
-    devanagari: '"Noto Serif Devanagari", "Kohinoor Devanagari", Mangal, "Nirmala UI", serif',
+    devanagari:
+      'var(--font-face-devanagari, "Noto Serif Devanagari"), var(--font-face-latin, "Noto Serif"), "Kohinoor Devanagari", Mangal, "Nirmala UI", serif',
     mono: 'ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Devanagari", monospace',
   },
   focus: {

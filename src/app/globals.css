@@ -4,7 +4,24 @@ html,
 body {
   background-color: var(--color-paper);
   color: var(--color-ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-latin);
+}
+
+/* Fonts follow the script: any element in (or marked as) Hindi uses the Devanagari face. */
+:lang(en) {
+  font-family: var(--font-latin);
+}
+
+:lang(hi) {
+  font-family: var(--font-devanagari);
+}
+
+/* Form controls otherwise take the platform's UI font instead of the script's face. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 :focus-visible {

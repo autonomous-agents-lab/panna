@@ -2,9 +2,18 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+import noUntranslatedUiString from "./eslint-rules/no-untranslated-ui-string.mjs";
+
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // UI text must come from the i18n layer (Hindi and English catalogues in src/i18n).
+    files: ["src/app/**/*.{ts,tsx,js,jsx}", "src/components/**/*.{ts,tsx,js,jsx}"],
+    ignores: ["**/*.test.{ts,tsx,js,jsx}", "**/__fixtures__/**"],
+    plugins: { i18n: { rules: { "no-untranslated-ui-string": noUntranslatedUiString } } },
+    rules: { "i18n/no-untranslated-ui-string": "error" },
+  },
   globalIgnores([
     ".next/**",
     "out/**",

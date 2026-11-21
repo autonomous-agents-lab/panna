@@ -7,12 +7,19 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.{ts,tsx}", "tests/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"],
     exclude: ["e2e/**", "node_modules/**"],
     coverage: {
       provider: "v8",
-      include: ["src/config/**", "src/theme/**","tests/guards/**"],
-      exclude: ["**/*.test.ts", "**/__fixtures__/**"],
+      include: [
+        "src/config/**",
+        "src/theme/**",
+        "src/i18n/**",
+        "src/components/**",
+        "eslint-rules/**",
+        "tests/guards/**",
+      ],
+      exclude: ["**/*.test.{ts,tsx}", "**/*.d.mts", "**/__fixtures__/**"],
     },
   },
 });
