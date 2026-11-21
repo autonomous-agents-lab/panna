@@ -4,8 +4,9 @@ import { defineConfig, devices } from "@playwright/test";
 // Load .env files the way Next does, so tests expect the same config the app renders.
 nextEnv.loadEnvConfig(process.cwd(), !process.env.CI);
 
-// `next dev` and `next start` also read PORT, so overriding it moves both together.
-const port = Number(process.env.PORT ?? 3000);
+// A port of its own, and never reusing a running server, so the tests always hit the app
+// Playwright started rather than a dev server or another app already on :3000.
+const port = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = `http://localhost:${port}`;
 
 export default defineConfig({
@@ -19,9 +20,11 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: process.env.CI ? "npm run build && npm run start" : "npm run dev",
+    command: process.env.CI
+      ? `npm run build && npm run start -- --port ${port}`
+      : `npm run dev -- --port ${port}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

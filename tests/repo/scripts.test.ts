@@ -29,6 +29,18 @@ describe("npm scripts", () => {
   });
 });
 
+describe("e2e config", () => {
+  it("starts its own app server on a port apart from the dev server's", async () => {
+    const { default: playwright } = await import("../../playwright.config");
+    const webServer = playwright.webServer;
+    if (!webServer || Array.isArray(webServer)) throw new Error("expected a single webServer");
+
+    expect(webServer.reuseExistingServer).toBe(false);
+    expect(webServer.url).not.toBe("http://localhost:3000");
+    expect(webServer.command).toContain(`--port ${new URL(webServer.url ?? "").port}`);
+  });
+});
+
 describe(".env.example", () => {
   function parseEnvExample() {
     const lines = read(".env.example").split(/\r?\n/);

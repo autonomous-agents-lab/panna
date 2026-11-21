@@ -29,7 +29,7 @@ npx playwright install chromium
 | ------------------ | -------------------------------------------------------------------- |
 | `npm run dev`      | Start the app locally at http://localhost:3000                       |
 | `npm test`         | Typecheck (`tsc --noEmit`), lint (ESLint), then unit tests (Vitest)  |
-| `npm run test:e2e` | Playwright end-to-end tests; starts the app itself                   |
+| `npm run test:e2e` | Playwright end-to-end tests; starts the app itself on port 3100 (`E2E_PORT` to change) |
 | `npm run build`    | Production build                                                     |
 | `npm run start`    | Serve the production build                                           |
 
