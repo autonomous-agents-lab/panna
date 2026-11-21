@@ -5,7 +5,7 @@ Read `docs/product-brief.md` first. It's the source of truth for what we're buil
 ## Stack
 - Next.js (App Router) + TypeScript `strict`. Node 22.
 - Supabase (Postgres, Auth, Storage) via `@supabase/ssr`. Local Supabase in Docker (`npx supabase start`) for development and tests.
-- Vitest for unit/component tests, Playwright for end-to-end. GitHub Actions CI. Vercel hosting.
+- Vitest for unit/component tests, Playwright for end-to-end. GitHub Actions CI. Netlify hosting (keep app code host-agnostic).
 
 ## Commands (keep these working; agents and CI rely on them)
 - `npm run dev`: local app

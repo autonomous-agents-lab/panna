@@ -56,16 +56,22 @@ The reading experience is the product. It should feel like holding a real copy, 
 - Fast: good Core Web Vitals on a mid-range phone over 4G. Privacy-friendly analytics.
 
 ## Technical direction
-- **Next.js (App Router) + TypeScript (strict)**, deployed on **Vercel**. Preview deploys for every PR; production deploys from `main`.
-- **Supabase**: Postgres, Auth, Storage. Schema changes are versioned SQL migrations in the repo. Row Level Security on every table. Developers and tests run against **local Supabase (Docker)**; the hosted project is only reached through Vercel's environment variables.
+- **Next.js (App Router) + TypeScript (strict)**, deployed on **Netlify** (official Next.js runtime). Deploy previews for every PR; production deploys from `main`. Keep the app host-agnostic: no host-specific APIs in app code.
+- **Supabase**: Postgres, Auth, Storage. Schema changes are versioned SQL migrations in the repo. Row Level Security on every table. Developers and tests run against **local Supabase (Docker)**; the hosted project is only reached through Netlify's environment variables.
 - Page-turn animation with CSS 3D transforms or WebGL (three.js) if needed for the paper curl; it must hold 60fps on mid-range phones and degrade gracefully.
 - Tests: unit (Vitest) for logic, component tests where useful, and end-to-end (Playwright) for the reading, writing and sharing flows, including swipe gestures and screenshots.
-- CI on GitHub Actions: typecheck, lint, unit tests, e2e on the preview.
+- CI on GitHub Actions: typecheck, lint, unit tests, e2e on the Netlify deploy preview.
 - Accessibility: keyboard navigation, focus states, screen-reader labels, reduced-motion support, colour contrast on the paper tones.
 - Bilingual UI (Hindi and English) for all app chrome, selectable by the user.
 
+## Environment (already set up)
+- Hosting: Netlify project `panna-book` (https://panna-book.netlify.app), free plan, deploys `main` to production and every PR to a Deploy Preview. Builds need the Next.js runtime (`netlify.toml`, `@netlify/plugin-nextjs` if required by the runtime version).
+- Netlify env already set: `NEXT_PUBLIC_APP_NAME=Panna`, `NEXT_PUBLIC_SUPABASE_URL`. The Supabase anon key is added before auth work (Epic 2) through the Netlify–Supabase integration; code reads it from `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- Supabase project `panna` (Free, Tokyo). Agents never use it directly; development and tests use local Supabase in Docker.
+- The repo is public: never commit secrets.
+
 ## Non-negotiables
-- No secrets in the repo. Only the Supabase **anon** key is ever in client code; the service-role key is never given to anyone or anything except Vercel's server environment.
+- No secrets in the repo. Only the Supabase **anon** key is ever in client code; the service-role key is never given to anyone or anything except Netlify's server environment.
 - Nothing in the product hard-deletes user content; deletion means archive/soft delete.
 - Every story ships with tests for its acceptance criteria.
 
@@ -75,7 +81,7 @@ The reading experience is the product. It should feel like holding a real copy, 
 - Native mobile apps, payments, monetisation, AI writing features.
 
 ## Suggested epics, in order
-1. Foundation and delivery pipeline (project setup, configurable branding, CI, Vercel, local Supabase, CLAUDE.md conventions).
+1. Foundation and delivery pipeline (project setup, configurable branding, CI, Netlify, local Supabase, CLAUDE.md conventions).
 2. Accounts, profiles and the book model.
 3. The book reader (closed cover, opening, 3D page turns with sound, paper, fonts, pagination, contents, resume).
 4. Writing (editor, chapters, drafts and publishing, images).
