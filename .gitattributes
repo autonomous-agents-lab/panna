@@ -1,0 +1,3 @@
+# Written by `npm run db:types`; regenerate instead of editing. A comment inside the file would be
+# lost on every regeneration, so it is marked here.
+src/lib/supabase/database.types.ts linguist-generated=true
