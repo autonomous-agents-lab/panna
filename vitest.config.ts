@@ -11,7 +11,7 @@ export default defineConfig({
     exclude: ["e2e/**", "node_modules/**"],
     coverage: {
       provider: "v8",
-      include: ["src/config/**", "tests/guards/**"],
+      include: ["src/config/**", "src/theme/**","tests/guards/**"],
       exclude: ["**/*.test.ts", "**/__fixtures__/**"],
     },
   },
