@@ -1,0 +1,4 @@
+/* Fixture for the raw hex colour guard: token references only. */
+.page {
+  background: var(--color-paper);
+}

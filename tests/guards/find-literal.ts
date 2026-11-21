@@ -16,7 +16,14 @@ function escapeRegExp(text: string): string {
  * deliberately not reported.
  */
 export function findLiteral(files: SourceFile[], name: string): LiteralHit[] {
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(name)}(?![\\p{L}\\p{N}_])`, "iu");
+  return findPattern(
+    files,
+    new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(name)}(?![\\p{L}\\p{N}_])`, "iu"),
+  );
+}
+
+/** Reports each line matching `pattern`, which must not be global (`test` would keep state). */
+export function findPattern(files: SourceFile[], pattern: RegExp): LiteralHit[] {
   return files.flatMap((file) =>
     file.content
       .split(/\r?\n/)
