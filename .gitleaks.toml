@@ -1,0 +1,19 @@
+# Secret scanning for CI (.github/workflows/ci.yml). The default rules already cover private keys,
+# generic JWTs and common API keys; the rules below name the Supabase secrets explicitly.
+title = "Panna gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "supabase-service-role-jwt"
+description = "Supabase service-role JWT"
+# A JWT whose payload carries "service_role": the three base64 alignments of that word.
+regex = '''\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]*(?:c2VydmljZV9yb2xl|NlcnZpY2Vfcm9sZ|zZXJ2aWNlX3JvbG)[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+'''
+keywords = ["c2VydmljZV9yb2xl", "NlcnZpY2Vfcm9sZ", "zZXJ2aWNlX3JvbG"]
+
+[[rules]]
+id = "supabase-secret-key"
+description = "Supabase secret API key"
+regex = '''\bsb_secret_[A-Za-z0-9_-]{20,}'''
+keywords = ["sb_secret_"]
