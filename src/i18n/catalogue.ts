@@ -1,11 +1,17 @@
 import type { Locale } from "./locales";
 import { en } from "./messages/en";
 import { hi } from "./messages/hi";
+import { createTranslator, type Translate } from "./translate";
 
 export type MessageKey = keyof typeof en;
 export type Catalogue = Record<MessageKey, string>;
 
 export const catalogues: Record<Locale, Catalogue> = { en, hi };
+
+/** `t` for a fixed locale, for output that isn't tied to a request (e.g. the web manifest). */
+export function translatorFor(locale: Locale): Translate {
+  return createTranslator(catalogues[locale]);
+}
 
 /** A language's own name, written in that language (e.g. "हिन्दी"), for the locale switch. */
 export function endonymOf(locale: Locale): string {

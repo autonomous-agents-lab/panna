@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { catalogues, compareCatalogues, endonymOf } from "./catalogue";
+import { catalogues, compareCatalogues, endonymOf, translatorFor } from "./catalogue";
 import { en } from "./messages/en";
 import { hi } from "./messages/hi";
 
@@ -43,5 +43,12 @@ describe("the English and Hindi catalogues", () => {
   it("name each language in its own language", () => {
     expect(endonymOf("en")).toBe("English");
     expect(endonymOf("hi")).toBe("हिन्दी");
+  });
+});
+
+describe("translatorFor", () => {
+  it("translates with the given locale's catalogue", () => {
+    expect(translatorFor("en")("localeSwitch.label")).toBe("Language");
+    expect(translatorFor("hi")("shell.homeLink", { appName: "Kitaab" })).toBe("Kitaab, मुखपृष्ठ");
   });
 });
