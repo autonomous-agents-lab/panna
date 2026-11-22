@@ -26,6 +26,12 @@ describe("theme tokens", () => {
     expect(stack).toMatch(/Devanagari/);
   });
 
+  it("leads the script stacks with the self-hosted next/font faces", () => {
+    expect(theme.font.devanagari.startsWith("var(--font-face-devanagari,")).toBe(true);
+    expect(theme.font.latin.startsWith("var(--font-face-latin,")).toBe(true);
+    expect(theme.font.latin).toContain("var(--font-face-devanagari,");
+  });
+
   it("does not use flat white for any paper tone", () => {
     for (const paper of [theme.color.paper, theme.color.paperAged, theme.color.paperShade]) {
       expect(hexToRgb(paper)).not.toEqual({ r: 255, g: 255, b: 255 });
