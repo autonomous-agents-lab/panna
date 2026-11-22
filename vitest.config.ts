@@ -3,7 +3,11 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Next resolves `server-only` to this empty module on the server; it throws anywhere else.
+      "server-only": fileURLToPath(new URL("./node_modules/server-only/empty.js", import.meta.url)),
+    },
   },
   test: {
     environment: "node",
@@ -16,10 +20,14 @@ export default defineConfig({
         "src/theme/**",
         "src/i18n/**",
         "src/components/**",
+        "src/contracts/**",
+        "src/lib/**",
+        "src/app/**",
         "eslint-rules/**",
         "tests/guards/**",
       ],
-      exclude: ["**/*.test.{ts,tsx}", "**/*.d.mts", "**/__fixtures__/**"],
+      // fonts.ts is next/font build-time configuration, which only runs inside Next.
+      exclude: ["**/*.test.{ts,tsx}", "**/*.d.mts", "**/__fixtures__/**", "src/app/fonts.ts"],
     },
   },
 });

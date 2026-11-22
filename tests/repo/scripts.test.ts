@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { envSchema } from "@/config/schema";
+import { SERVER_ENV_VARIABLES } from "@/config/server";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
 const read = (file: string) => readFileSync(join(repoRoot, file), "utf8");
@@ -53,7 +54,21 @@ describe(".env.example", () => {
 
   it("lists exactly the variables src/config reads", () => {
     const { assignments } = parseEnvExample();
-    expect(assignments.map((entry) => entry.key).sort()).toEqual(Object.keys(envSchema.shape).sort());
+    const keys = assignments.map((entry) => entry.key ?? "");
+    const isPublic = (key: string) => key.startsWith("NEXT_PUBLIC_");
+    const serverOnly: readonly string[] = SERVER_ENV_VARIABLES;
+    expect(keys.filter(isPublic).sort()).toEqual(Object.keys(envSchema.shape).sort());
+    expect(keys.filter((key) => !isPublic(key)).filter((key) => !serverOnly.includes(key))).toEqual([]);
+  });
+
+  it("documents every server-only variable, set or in a comment", () => {
+    const text = read(".env.example");
+    for (const name of SERVER_ENV_VARIABLES) expect(text, name).toMatch(new RegExp(`\\b${name}\\b`));
+  });
+
+  it("warns that the test routes must never be turned on in Netlify", () => {
+    expect(read(".env.example")).toMatch(/never be set in Netlify/);
+    expect(read("README.md")).toMatch(/never be set in Netlify/);
   });
 
   it("documents each variable with a comment and a valid placeholder", () => {

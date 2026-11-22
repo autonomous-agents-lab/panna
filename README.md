@@ -29,13 +29,20 @@ npx playwright install chromium
 | ------------------ | -------------------------------------------------------------------- |
 | `npm run dev`      | Start the app locally at http://localhost:3000                       |
 | `npm test`         | Typecheck (`tsc --noEmit`), lint (ESLint), then unit tests (Vitest)  |
-| `npm run test:e2e` | Playwright end-to-end tests; starts the app itself on port 3100 (`E2E_PORT` to change) |
+| `npm run test:e2e` | Playwright end-to-end tests, including axe accessibility checks; builds and starts the production app itself on port 3100 (`E2E_PORT` to change) |
 | `npm run build`    | Production build                                                     |
 | `npm run start`    | Serve the production build                                           |
 
 ## Configuration
 
-App-wide values (app name, site URL, feature flags, limits) come only from `src/config`, which reads and validates the environment. The app name comes from `NEXT_PUBLIC_APP_NAME`; `npm test` fails if the name is written anywhere else under `src/`.
+App-wide values (app name, site URL, feature flags, limits) come only from `src/config`, which reads and validates the environment. The app name comes from `NEXT_PUBLIC_APP_NAME`; `npm test` fails if the name is written anywhere else under `src/`. Canonical, Open Graph and manifest URLs are built from `NEXT_PUBLIC_SITE_URL`, so a custom domain is only an env change; `npm test` fails if an absolute `http(s)://` URL is written under `src/` outside `src/config`.
+
+Server-only values live in `src/config/server.ts`, which client code can't import:
+
+- `APP_VERSION`: the commit SHA `/api/health` reports. Leave it unset on Netlify, which provides `COMMIT_REF`; GitHub Actions provides `GITHUB_SHA`. Anything that isn't a 7 to 40 character hex SHA is ignored in favour of the `package.json` version.
+- `ENABLE_TEST_ROUTES`: `true` turns on `/test-only/*` routes (a page that throws, for the error-page tests). Playwright sets it for the server it starts. It must never be set in Netlify, in production or in deploy previews.
+
+`GET /api/health` returns `{ status: "ok", version, time }` with `Cache-Control: no-store`. It doesn't check Supabase.
 
 ## Languages (Hindi and English)
 

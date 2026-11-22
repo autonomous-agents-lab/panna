@@ -29,6 +29,28 @@ textarea {
   outline-offset: var(--focus-ring-offset);
 }
 
+/* Off screen until it has focus, then shown at the top left above everything else. */
+.skip-link {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 1;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  transform: translateY(calc(-100% - var(--space-4)));
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* The skip link focuses the main landmark; it isn't a control, so it draws no ring. */
+main[tabindex="-1"]:focus {
+  outline: none;
+}
+
 /* Essential motion (e.g. the reader's page turn) must handle reduced motion itself. */
 @media (prefers-reduced-motion: reduce) {
   *,
