@@ -2,6 +2,12 @@
 export const TEST_ROUTES_TAG = "@test-routes";
 
 /**
+ * Tests that sign in through local Supabase's mail inbox (Mailpit). A deploy uses the hosted
+ * project, whose emails can't be read, so remote runs skip them.
+ */
+export const LOCAL_SUPABASE_TAG = "@local-supabase";
+
+/**
  * Domains the Deploy Preview review toolbar loads from (its loader, its app and its analytics).
  * Netlify injects the toolbar into preview HTML only, never production. It takes focus and makes
  * third-party requests, so remote runs stub it out.
@@ -44,7 +50,7 @@ export function resolveTarget(env: Record<string, string | undefined>): E2eTarge
     }
     return {
       baseURL: url.origin,
-      grepInvert: new RegExp(TEST_ROUTES_TAG),
+      grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${LOCAL_SUPABASE_TAG}`),
       hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
     };
   }
@@ -60,7 +66,9 @@ export function resolveTarget(env: Record<string, string | undefined>): E2eTarge
       command: `npm run build && npm run start -- --port ${port}`,
       url: baseURL,
       // Turns on /test-only/* (a route that throws, for the error page tests). Never set in Netlify.
-      env: { ENABLE_TEST_ROUTES: "true" },
+      // The site URL is the server under test, so auth links come back to it rather than to a
+      // dev server on another port (playwright.config.ts hands the tests the same value).
+      env: { ENABLE_TEST_ROUTES: "true", NEXT_PUBLIC_SITE_URL: baseURL },
     },
   };
 }

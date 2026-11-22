@@ -3,34 +3,42 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { isHostTooling, PREVIEW_TOOLBAR_DOMAINS, resolveTarget, TEST_ROUTES_TAG } from "../../e2e/target";
+import {
+  isHostTooling,
+  LOCAL_SUPABASE_TAG,
+  PREVIEW_TOOLBAR_DOMAINS,
+  resolveTarget,
+  TEST_ROUTES_TAG,
+} from "../../e2e/target";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
 const PREVIEW = "https://deploy-preview-7--panna-book.netlify.app";
 
 describe("resolveTarget (AC-3)", () => {
-  it("points at a deployed site when PLAYWRIGHT_BASE_URL is set, starting no server and leaving out test-route tests", () => {
+  it("points at a deployed site when PLAYWRIGHT_BASE_URL is set, starting no server and leaving out test-route and local-Supabase tests", () => {
     const target = resolveTarget({ PLAYWRIGHT_BASE_URL: `${PREVIEW}/`, E2E_PORT: "4000" });
 
     expect(target).toEqual({
       baseURL: PREVIEW,
-      grepInvert: new RegExp(TEST_ROUTES_TAG),
+      grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${LOCAL_SUPABASE_TAG}`),
       hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
     });
     expect(target.grepInvert?.test("@test-routes")).toBe(true);
+    expect(target.grepInvert?.test("@local-supabase")).toBe(true);
+    expect(target.grepInvert?.test("sign-in in en-US")).toBe(false);
   });
 
-  it("otherwise builds and starts the app itself, with test routes on", () => {
-    expect(resolveTarget({ PLAYWRIGHT_BASE_URL: "" })).toEqual({
+  it("otherwise builds and starts the app itself, with test routes on and auth links back to it", () => {
+    expect(resolveTarget({ PLAYWRIGHT_BASE_URL: "", NEXT_PUBLIC_SITE_URL: "http://localhost:3000" })).toEqual({
       baseURL: "http://localhost:3100",
       hostToolingDomains: [],
       webServer: {
         command: "npm run build && npm run start -- --port 3100",
         url: "http://localhost:3100",
-        env: { ENABLE_TEST_ROUTES: "true" },
+        env: { ENABLE_TEST_ROUTES: "true", NEXT_PUBLIC_SITE_URL: "http://localhost:3100" },
       },
     });
-    expect(resolveTarget({ E2E_PORT: "4000" }).webServer?.url).toBe("http://localhost:4000");
+    expect(resolveTarget({ E2E_PORT: "4000" }).webServer?.env.NEXT_PUBLIC_SITE_URL).toBe("http://localhost:4000");
   });
 
   it.each(["deploy-preview-7", "http://panna-book.netlify.app", "ftp://example.com"])(
@@ -105,10 +113,25 @@ describe("tests run against a Deploy Preview (AC-3, AC-9)", () => {
     expect(remote.some((line) => line.includes("/api/health reports ok"))).toBe(true);
   });
 
-  it("leaves out only the tests that need /test-only/* routes, which still run locally", () => {
+  it("leaves out only the tests that need /test-only/* routes or local Supabase, which still run locally", () => {
     const left = local.filter((line) => !remote.includes(line));
+    const localOnly = /error page|\/test-only\/|with local Supabase/;
     expect(left.length).toBeGreaterThan(0);
-    for (const line of left) expect(line).toMatch(/error page|\/test-only\//);
-    expect(remote.some((line) => /error page|\/test-only\//.test(line))).toBe(false);
+    for (const line of left) expect(line).toMatch(localOnly);
+    expect(left.some((line) => line.includes("with local Supabase › a magic link signs in"))).toBe(true);
+    expect(remote.some((line) => localOnly.test(line))).toBe(false);
+  });
+
+  it("still runs the sign-in checks that need no local Supabase against the preview (BOOK-17)", () => {
+    for (const name of [
+      "sign-in in en-US › /login is a translated, noindex page",
+      "sign-in in hi-IN › an invalid email shows an inline, labelled error",
+      "protected pages › a signed-out visit to /settings goes to /login",
+      "protected pages › a signed-out visit to /onboarding goes to /login",
+      "sign-in with the keyboard › every control on /login",
+      "Continue with Google goes to Supabase's Google flow",
+    ]) {
+      expect(remote.some((line) => line.includes(name)), name).toBe(true);
+    }
   });
 });

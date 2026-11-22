@@ -7,6 +7,13 @@
   padding: var(--space-3) var(--space-4);
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
 .home {
   color: var(--color-ink);
   text-decoration: none;

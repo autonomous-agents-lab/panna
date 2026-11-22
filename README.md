@@ -37,6 +37,7 @@ npx playwright install chromium
 | `npm run test:db`  | pgTAP policy tests in `supabase/tests` against the local Supabase stack |
 | `npm run test:build` | Production build, then checks the client bundles reference only the public Supabase variables |
 | `npm run db:types` | Regenerate `src/lib/supabase/database.types.ts` from the local database |
+| `npm run auth:emails` | Regenerate the Supabase Auth email templates and subjects from `NEXT_PUBLIC_APP_NAME` (see [Auth locally](#auth-locally)) |
 
 ## Continuous integration
 
@@ -48,7 +49,7 @@ npx playwright install chromium
 | `lint`      | `npm run lint` |
 | `unit`      | `npm run test:unit` |
 | `build`     | `npm run test:build` (production build plus the client-bundle check) |
-| `e2e`       | `npm run test:e2e`, with the Playwright browser cached per Playwright version |
+| `e2e`       | Starts a local Supabase (Postgres, Auth, API and Mailpit), points the app at it, then `npm run test:e2e`, with the Playwright browser cached per Playwright version |
 | `db`        | Starts a fresh local Supabase, `supabase db reset --local` (every migration, then the seed), then `npm run test:db` |
 | `secrets`   | gitleaks over the PR's commits (or the pushed commits on `main`), using `.gitleaks.toml` |
 | `preview`   | Pull requests only: waits for the PR's Netlify Deploy Preview to serve the PR's head commit (see [Deployment](#deployment)) |
@@ -66,7 +67,7 @@ The app is hosted on Netlify (site `panna-book`, production at https://panna-boo
 The flow for every change:
 
 1. **Open a pull request.** Netlify builds a Deploy Preview at `https://deploy-preview-<PR number>--panna-book.netlify.app` and posts its URL on the PR.
-2. **CI tests the preview.** The `preview` job polls the preview's `/api/health` until it reports the PR's head commit, then `e2e-preview` runs the whole Playwright suite, axe checks included, against it with `PLAYWRIGHT_BASE_URL` set to the preview URL. Tests that need the `/test-only/*` routes are tagged `@test-routes` and only run in the local `e2e` job, because those routes are never turned on in a deploy. Netlify injects its review toolbar into previews (never production); on remote runs the specs' shared fixture (`e2e/fixtures.ts`) answers the toolbar's requests with an empty script, so it can't take focus or show up as an external request.
+2. **CI tests the preview.** The `preview` job polls the preview's `/api/health` until it reports the PR's head commit, then `e2e-preview` runs the whole Playwright suite, axe checks included, against it with `PLAYWRIGHT_BASE_URL` set to the preview URL. Tests that need the `/test-only/*` routes are tagged `@test-routes` and only run in the local `e2e` job, because those routes are never turned on in a deploy. Tests that sign in through local Supabase's mail inbox are tagged `@local-supabase` and only run there too. Netlify injects its review toolbar into previews (never production); on remote runs the specs' shared fixture (`e2e/fixtures.ts`) answers the toolbar's requests with an empty script, so it can't take focus or show up as an external request.
 3. **Merge to `main`.** Netlify deploys to production, and the `production` job waits for https://panna-book.netlify.app to serve the merged commit and checks `/` and `/api/health` answer 200.
 
 Deployed env values (the app name, the Supabase URL and, from Epic 2, the anon key) are set only in Netlify; `.env.example` notes which. The Supabase service-role key may only ever go in Netlify's server-side environment. CI needs no Netlify token, because preview URLs are predictable and `/api/health` reports the deployed commit. The URLs and the wait (`WAIT_TIMEOUT_MINUTES`, 8 minutes) are set once in the workflow's `env`.
@@ -125,6 +126,24 @@ Rules:
 
 - An applied migration is never edited. To change something, add a new migration.
 - Migrations only add or change; a migration never drops user data. User content is soft-deleted with `archived_at`/`deleted_at`.
+
+## Auth locally
+
+Sign-in uses Supabase Auth through `@supabase/ssr`: an emailed magic link or Google, both returning to `/auth/callback` on `NEXT_PUBLIC_SITE_URL`. `src/proxy.ts` refreshes the session on every page request and sends signed-out visitors of `/settings` and `/onboarding` (and anything under them) to `/login?next=<path>`. Every `next` value goes through `safeNextPath` (`src/lib/auth/redirect.ts`), so sign-in never redirects off the site. Without the Supabase variables, public pages still render (signed out), protected pages redirect to `/login`, and `/login` says sign-in is unavailable.
+
+**Magic links.** With the local stack running (see [Local Supabase](#local-supabase)), sign in at http://localhost:3000/login and open the email in Mailpit at http://127.0.0.1:54324. Open the link in the same browser that asked for it: it uses PKCE, so another browser (e.g. a phone's mail app) lands on `/login` with an error and a form to request a new link. The local Auth config allows redirects to `http://localhost:3000/auth/callback` and the e2e server's `http://localhost:3100/auth/callback`; use `localhost`, not `127.0.0.1`, so the cookies match.
+
+**Google.** `supabase/config.toml` turns Google on with `client_id` and `secret` read through `env(...)` from `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`. A plain `npx supabase start` works without them: the CLI keeps the `env(...)` text as a placeholder, and only real Google sign-in fails. To try Google locally, create an OAuth client in the Google Cloud console with the redirect URI `http://127.0.0.1:54321/auth/v1/callback`, export both variables in your shell, then `npx supabase stop && npx supabase start`. Never commit real credentials.
+
+**Email templates.** Supabase Auth can't read the app's env, so the magic-link and confirmation emails (one bilingual email, Hindi and English) are generated from `NEXT_PUBLIC_APP_NAME` into `supabase/templates/*.html` and the `subject` lines in `supabase/config.toml`. After changing the name or the copy in `src/lib/auth/email-templates.ts`, run `npm run auth:emails`, commit the result and restart Supabase. `npm test` fails if the committed files drift from the configured name.
+
+**Hosted project (manual, by the owner).** In the Supabase dashboard for the hosted project:
+
+1. Authentication → URL Configuration: set the Site URL to `https://panna-book.netlify.app` and add `https://panna-book.netlify.app/auth/callback**` to the redirect URLs.
+2. Authentication → Emails: for "Magic link" and "Confirm signup", paste the subject from `supabase/config.toml` and the body from `supabase/templates/magic_link.html` and `confirmation.html`. Run `NEXT_PUBLIC_APP_NAME=<deployed name> npm run auth:emails` first if Netlify sets a different name (and don't commit that output unless the default changes too).
+3. Authentication → Providers → Google: enable it with a real OAuth client whose authorized redirect URI is `<supabase project URL>/auth/v1/callback`.
+
+**Deploy Previews can't complete sign-in.** Callbacks are built only from `NEXT_PUBLIC_SITE_URL`, which `netlify.toml` maps to the production URL on previews, so a magic link or Google sign-in started on a preview returns to production. The `@local-supabase` e2e tests cover the full flow instead.
 
 ## Languages (Hindi and English)
 
