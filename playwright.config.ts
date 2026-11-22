@@ -20,10 +20,12 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: process.env.CI
-      ? `npm run build && npm run start -- --port ${port}`
-      : `npm run dev -- --port ${port}`,
+    // Always the production build: the dev error overlay traps focus on pages that throw, which
+    // would hide what users really get from the error page (keyboard and axe checks).
+    command: `npm run build && npm run start -- --port ${port}`,
     url: baseURL,
+    // Turns on /test-only/* (a route that throws, for the error page tests). Never set in Netlify.
+    env: { ENABLE_TEST_ROUTES: "true" },
     reuseExistingServer: false,
     timeout: 120_000,
   },

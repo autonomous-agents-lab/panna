@@ -29,7 +29,7 @@ npx playwright install chromium
 | ------------------ | -------------------------------------------------------------------- |
 | `npm run dev`      | Start the app locally at http://localhost:3000                       |
 | `npm test`         | Typecheck (`tsc --noEmit`), lint (ESLint), then unit tests (Vitest)  |
-| `npm run test:e2e` | Playwright end-to-end tests; starts the app itself on port 3100 (`E2E_PORT` to change) |
+| `npm run test:e2e` | Playwright end-to-end tests, including axe accessibility checks; builds and starts the production app itself on port 3100 (`E2E_PORT` to change) |
 | `npm run build`    | Production build                                                     |
 | `npm run start`    | Serve the production build                                           |
 | `npm run test:db`  | pgTAP policy tests in `supabase/tests` against the local Supabase stack |
@@ -38,9 +38,16 @@ npx playwright install chromium
 
 ## Configuration
 
-App-wide values (app name, site URL, feature flags, limits) come only from `src/config`, which reads and validates the environment. The app name comes from `NEXT_PUBLIC_APP_NAME`; `npm test` fails if the name is written anywhere else under `src/`.
+App-wide values (app name, site URL, feature flags, limits) come only from `src/config`, which reads and validates the environment. The app name comes from `NEXT_PUBLIC_APP_NAME`; `npm test` fails if the name is written anywhere else under `src/`. Canonical, Open Graph and manifest URLs are built from `NEXT_PUBLIC_SITE_URL`, so a custom domain is only an env change; `npm test` fails if an absolute `http(s)://` URL is written under `src/` outside `src/config`.
 
 The Supabase URL and anon key are validated only when a Supabase client is created (`getSupabaseConfig()`), so pages that don't use Supabase render without them. A missing value throws an error naming the variable.
+
+Server-only values live in `src/config/server.ts`, which client code can't import:
+
+- `APP_VERSION`: the commit SHA `/api/health` reports. Leave it unset on Netlify, which provides `COMMIT_REF`; GitHub Actions provides `GITHUB_SHA`. Anything that isn't a 7 to 40 character hex SHA is ignored in favour of the `package.json` version.
+- `ENABLE_TEST_ROUTES`: `true` turns on `/test-only/*` routes (a page that throws, for the error-page tests). Playwright sets it for the server it starts. It must never be set in Netlify, in production or in deploy previews.
+
+`GET /api/health` returns `{ status: "ok", version, time }` with `Cache-Control: no-store`. It doesn't check Supabase.
 
 ## Local Supabase
 
@@ -75,3 +82,11 @@ Rules:
 
 - An applied migration is never edited. To change something, add a new migration.
 - Migrations only add or change; a migration never drops user data. User content is soft-deleted with `archived_at`/`deleted_at`.
+
+## Languages (Hindi and English)
+
+All UI text comes from the catalogues in `src/i18n/messages/` (`en.ts` and `hi.ts`). To add a string, add the same key to both catalogues, then use it through `getTranslator()` from `@/i18n/server` in Server Components or `useTranslator()` from `@/i18n/client` in Client Components. Use `{name}` placeholders for values, e.g. `t("shell.homeLink", { appName: config.appName })`.
+
+`npm test` fails if a key is in one catalogue but not the other, if a value is empty, or if a component in `src/app` or `src/components` writes UI text (or an `aria-label`, `alt`, `title` or `placeholder`) directly instead of through `t()`.
+
+The language comes from the `locale` cookie set by the switch in the header; without it, from the browser's `Accept-Language`; otherwise English. URLs never carry a locale.

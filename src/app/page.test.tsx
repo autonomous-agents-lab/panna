@@ -1,25 +1,56 @@
-import { renderToString } from "react-dom/server";
-import { afterEach, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-afterEach(() => {
-  vi.unstubAllEnvs();
-  vi.resetModules();
+import { config } from "@/config";
+import { catalogues } from "@/i18n/catalogue";
+import { createTranslator } from "@/i18n/translate";
+
+const locale = vi.hoisted(() => ({ current: "en" as "en" | "hi" }));
+
+vi.mock("./fonts", () => ({ fontVariables: "fonts" }));
+vi.mock("@/i18n/server", () => ({
+  getLocale: async () => locale.current,
+  getMessages: async () => catalogues[locale.current],
+  getTranslator: async () => ({ locale: locale.current, t: createTranslator(catalogues[locale.current]) }),
+}));
+
+const { default: HomePage, generateMetadata } = await import("./page");
+
+describe("HomePage", () => {
+  it.each(["en", "hi"] as const)("in %s, shows the app name and the translated tagline, with no main of its own", async (current) => {
+    locale.current = current;
+    const html = renderToStaticMarkup(await HomePage());
+    expect(html).toBe(`<h1>${config.appName}</h1><p>${catalogues[current]["home.tagline"]}</p>`);
+  });
+
+  it("is canonical at the site root", async () => {
+    const metadata = await generateMetadata();
+    expect(metadata.alternates).toEqual({ canonical: "/" });
+    expect(metadata.openGraph).toMatchObject({ url: "/", siteName: config.appName });
+    expect(metadata).not.toHaveProperty("robots");
+  });
 });
 
-it("renders the shell without any Supabase variables set", async () => {
-  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", undefined);
-  vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", undefined);
-  vi.resetModules();
+describe("without any Supabase variables set", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
 
-  const { default: RootLayout } = await import("./layout");
-  const { default: HomePage } = await import("./page");
-  const { config } = await import("@/config");
+  it("still renders the shell and the home page", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", undefined);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", undefined);
+    vi.resetModules();
+    locale.current = "en";
 
-  const html = renderToString(
-    <RootLayout>
-      <HomePage />
-    </RootLayout>,
-  );
+    const { default: RootLayout } = await import("./layout");
+    const { default: FreshHomePage } = await import("./page");
+    const { config: freshConfig } = await import("@/config");
 
-  expect(html).toContain(`<h1>${config.appName}</h1>`);
+    const page = await FreshHomePage();
+    const shell = await RootLayout({ children: page });
+
+    expect(shell.props.lang).toBe("en");
+    expect(renderToStaticMarkup(page)).toContain(`<h1>${freshConfig.appName}</h1>`);
+  });
 });
