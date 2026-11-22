@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
 
+import { expect, test } from "./fixtures";
 import { TEST_ROUTES_TAG } from "./target";
 
 const WCAG_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];

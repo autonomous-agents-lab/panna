@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
-
 import { loadConfig } from "../src/config/schema";
+
+import { expect, test } from "./fixtures";
 
 const { appName } = loadConfig(process.env);
 

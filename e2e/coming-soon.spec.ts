@@ -1,9 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
 
 import { loadConfig } from "../src/config/schema";
 import { en } from "../src/i18n/messages/en";
 import { hi } from "../src/i18n/messages/hi";
+
+import { expect, test } from "./fixtures";
 
 const { appName } = loadConfig(process.env);
 

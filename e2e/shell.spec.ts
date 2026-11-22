@@ -1,10 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { loadConfig } from "../src/config/schema";
 import { healthResponseSchema } from "../src/contracts/health";
 import { en } from "../src/i18n/messages/en";
 import { hi } from "../src/i18n/messages/hi";
 
+import { expect, test } from "./fixtures";
 import { TEST_ROUTES_TAG } from "./target";
 
 const { appName, siteUrl } = loadConfig(process.env);

@@ -1,7 +1,10 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { en } from "../src/i18n/messages/en";
 import { hi } from "../src/i18n/messages/hi";
+
+import { expect, test } from "./fixtures";
+import { isHostTooling, resolveTarget } from "./target";
 
 const ENGLISH_TAGLINE = en["home.tagline"];
 const HINDI_TAGLINE = hi["home.tagline"];
@@ -169,7 +172,9 @@ test.describe("fonts", () => {
     for (const face of faces) expect(face.display).toBe("swap");
 
     const origin = new URL(baseURL!).origin;
-    expect(requests.filter((url) => new URL(url).origin !== origin)).toEqual([]);
+    const target = resolveTarget(process.env);
+    const external = requests.filter((url) => new URL(url).origin !== origin && !isHostTooling(url, target));
+    expect(external).toEqual([]);
   });
 });
 

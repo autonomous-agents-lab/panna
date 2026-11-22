@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { resolveTarget, TEST_ROUTES_TAG } from "../../e2e/target";
+import { isHostTooling, PREVIEW_TOOLBAR_DOMAINS, resolveTarget, TEST_ROUTES_TAG } from "../../e2e/target";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
 const PREVIEW = "https://deploy-preview-7--panna-book.netlify.app";
@@ -11,13 +12,18 @@ describe("resolveTarget (AC-3)", () => {
   it("points at a deployed site when PLAYWRIGHT_BASE_URL is set, starting no server and leaving out test-route tests", () => {
     const target = resolveTarget({ PLAYWRIGHT_BASE_URL: `${PREVIEW}/`, E2E_PORT: "4000" });
 
-    expect(target).toEqual({ baseURL: PREVIEW, grepInvert: new RegExp(TEST_ROUTES_TAG) });
+    expect(target).toEqual({
+      baseURL: PREVIEW,
+      grepInvert: new RegExp(TEST_ROUTES_TAG),
+      hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
+    });
     expect(target.grepInvert?.test("@test-routes")).toBe(true);
   });
 
   it("otherwise builds and starts the app itself, with test routes on", () => {
     expect(resolveTarget({ PLAYWRIGHT_BASE_URL: "" })).toEqual({
       baseURL: "http://localhost:3100",
+      hostToolingDomains: [],
       webServer: {
         command: "npm run build && npm run start -- --port 3100",
         url: "http://localhost:3100",
@@ -35,6 +41,43 @@ describe("resolveTarget (AC-3)", () => {
       );
     },
   );
+});
+
+describe("isHostTooling (AC-3)", () => {
+  const remote = resolveTarget({ PLAYWRIGHT_BASE_URL: PREVIEW });
+
+  it.each([
+    "https://netlify-cdp-loader.netlify.app/netlify.js",
+    "https://app.netlify.com/access-control/bb-api/api/v1/cdp/deploys/1/views",
+    "https://cdn.segment.com/analytics-next/bundles/ajs-destination.bundle.js",
+    "https://api.segment.io/v1/t",
+    "https://netlify.com/",
+  ])("treats the preview toolbar's %s as host tooling on a remote run", (url) => {
+    expect(isHostTooling(url, remote)).toBe(true);
+  });
+
+  it.each([
+    `${PREVIEW}/_next/static/media/devanagari.woff2`,
+    "https://fonts.gstatic.com/s/notosansdevanagari.woff2",
+    "https://netlify.app.example.com/x.js",
+    "https://notsegment.com/x.js",
+  ])("never treats %s as host tooling, so the app's own requests still count", (url) => {
+    expect(isHostTooling(url, remote)).toBe(false);
+  });
+
+  it("treats nothing as host tooling on a local run", () => {
+    expect(isHostTooling("https://app.netlify.com/x", resolveTarget({}))).toBe(false);
+  });
+});
+
+describe("e2e specs", () => {
+  const specs = readdirSync(join(repoRoot, "e2e")).filter((file) => file.endsWith(".spec.ts"));
+
+  it.each(specs)("%s takes `test` from ./fixtures, so the preview toolbar is stubbed out", (file) => {
+    const source = readFileSync(join(repoRoot, "e2e", file), "utf8");
+    expect(source).toMatch(/^import \{ expect, test \} from "\.\/fixtures";$/m);
+    expect(source).not.toMatch(/import \{[^}]*\btest\b[^}]*\} from "@playwright\/test"/);
+  });
 });
 
 describe("tests run against a Deploy Preview (AC-3, AC-9)", () => {
