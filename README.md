@@ -15,6 +15,8 @@ cp .env.example .env.local      # local settings; edit .env.local if you need to
 npm run dev                     # open http://localhost:3000
 ```
 
+The `optionalDependencies` in `package.json` pin the native bindings of `rolldown` and `lightningcss` (used by Vite/Vitest) for Linux x64 (glibc) and macOS. Without them, a lockfile written on one platform can leave out every binding, and `npm ci` breaks elsewhere ([npm/cli#4828](https://github.com/npm/cli/issues/4828)). When you bump Vitest or Vite, set these pins to the new `rolldown` and `lightningcss` versions. `tests/repo/lockfile.test.ts` fails until you do.
+
 The app settings in `.env.example` have working defaults, so the shell also runs without `.env.local`. An invalid value stops the app with an error naming the variable. The Supabase variables have no defaults; set them as described in [Local Supabase](#local-supabase).
 
 Before running the end-to-end tests for the first time, install the browser Playwright uses:
