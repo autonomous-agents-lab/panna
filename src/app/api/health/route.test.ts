@@ -1,3 +1,6 @@
+// Server-only: it stubs the service-role key name, which tests/guards allows only in such modules.
+import "server-only";
+
 import { afterEach, expect, it, vi } from "vitest";
 
 import { healthResponseSchema } from "@/contracts/health";

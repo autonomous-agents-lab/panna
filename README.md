@@ -15,7 +15,7 @@ cp .env.example .env.local      # local settings; edit .env.local if you need to
 npm run dev                     # open http://localhost:3000
 ```
 
-Every variable in `.env.example` has a working default, so the app also runs without `.env.local`. An invalid value stops the app with an error naming the variable.
+The app settings in `.env.example` have working defaults, so the shell also runs without `.env.local`. An invalid value stops the app with an error naming the variable. The Supabase variables have no defaults; set them as described in [Local Supabase](#local-supabase).
 
 Before running the end-to-end tests for the first time, install the browser Playwright uses:
 
@@ -32,10 +32,15 @@ npx playwright install chromium
 | `npm run test:e2e` | Playwright end-to-end tests, including axe accessibility checks; builds and starts the production app itself on port 3100 (`E2E_PORT` to change) |
 | `npm run build`    | Production build                                                     |
 | `npm run start`    | Serve the production build                                           |
+| `npm run test:db`  | pgTAP policy tests in `supabase/tests` against the local Supabase stack |
+| `npm run test:build` | Production build, then checks the client bundles reference only the public Supabase variables |
+| `npm run db:types` | Regenerate `src/lib/supabase/database.types.ts` from the local database |
 
 ## Configuration
 
 App-wide values (app name, site URL, feature flags, limits) come only from `src/config`, which reads and validates the environment. The app name comes from `NEXT_PUBLIC_APP_NAME`; `npm test` fails if the name is written anywhere else under `src/`. Canonical, Open Graph and manifest URLs are built from `NEXT_PUBLIC_SITE_URL`, so a custom domain is only an env change; `npm test` fails if an absolute `http(s)://` URL is written under `src/` outside `src/config`.
+
+The Supabase URL and anon key are validated only when a Supabase client is created (`getSupabaseConfig()`), so pages that don't use Supabase render without them. A missing value throws an error naming the variable.
 
 Server-only values live in `src/config/server.ts`, which client code can't import:
 
@@ -43,6 +48,40 @@ Server-only values live in `src/config/server.ts`, which client code can't impor
 - `ENABLE_TEST_ROUTES`: `true` turns on `/test-only/*` routes (a page that throws, for the error-page tests). Playwright sets it for the server it starts. It must never be set in Netlify, in production or in deploy previews.
 
 `GET /api/health` returns `{ status: "ok", version, time }` with `Cache-Control: no-store`. It doesn't check Supabase.
+
+## Local Supabase
+
+Every developer runs the same local database (Postgres, Auth, Storage) in Docker. The Supabase CLI is a pinned dev dependency, so `npx supabase` is the same version for everyone.
+
+You need Docker running. Then:
+
+```sh
+npx supabase start              # first run downloads the images; prints the local URLs and keys
+npx supabase status             # prints them again at any time
+```
+
+**Copy the local values into `.env.local`.** From the `npx supabase status` output, copy the API URL into `NEXT_PUBLIC_SUPABASE_URL` and the anon key (shown as the publishable key in newer CLI versions) into `NEXT_PUBLIC_SUPABASE_ANON_KEY`. The anon key in `.env.example` is only a placeholder and will not work. Never put the service-role (secret) key in `.env.local` or in client code.
+
+```sh
+npx supabase db reset           # rebuild the database: apply every migration, then supabase/seed.sql
+npm run test:db                 # run the pgTAP policy tests in supabase/tests
+npx supabase stop               # stop the stack when you are done
+```
+
+`npm run test:db` also fails if any table in the `public` schema has row level security disabled.
+
+### Adding a migration
+
+1. `npx supabase migration new <short_name>` creates `supabase/migrations/<timestamp>_<short_name>.sql`. Write the SQL there.
+2. Every new table enables row level security, has a policy for each allowed action, and revokes privileges a client role must not have, in the same migration. Follow `supabase/migrations/*_create_app_meta.sql`.
+3. Add pgTAP tests in `supabase/tests/<name>.test.sql` for every allowed and denied case.
+4. `npx supabase db reset`, then `npm run test:db`.
+5. `npm run db:types` and commit the regenerated `src/lib/supabase/database.types.ts` in the same PR.
+
+Rules:
+
+- An applied migration is never edited. To change something, add a new migration.
+- Migrations only add or change; a migration never drops user data. User content is soft-deleted with `archived_at`/`deleted_at`.
 
 ## Languages (Hindi and English)
 

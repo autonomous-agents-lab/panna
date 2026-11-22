@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { config } from "@/config";
 import { catalogues } from "@/i18n/catalogue";
@@ -7,7 +7,10 @@ import { createTranslator } from "@/i18n/translate";
 
 const locale = vi.hoisted(() => ({ current: "en" as "en" | "hi" }));
 
+vi.mock("./fonts", () => ({ fontVariables: "fonts" }));
 vi.mock("@/i18n/server", () => ({
+  getLocale: async () => locale.current,
+  getMessages: async () => catalogues[locale.current],
   getTranslator: async () => ({ locale: locale.current, t: createTranslator(catalogues[locale.current]) }),
 }));
 
@@ -25,5 +28,29 @@ describe("HomePage", () => {
     expect(metadata.alternates).toEqual({ canonical: "/" });
     expect(metadata.openGraph).toMatchObject({ url: "/", siteName: config.appName });
     expect(metadata).not.toHaveProperty("robots");
+  });
+});
+
+describe("without any Supabase variables set", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("still renders the shell and the home page", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", undefined);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", undefined);
+    vi.resetModules();
+    locale.current = "en";
+
+    const { default: RootLayout } = await import("./layout");
+    const { default: FreshHomePage } = await import("./page");
+    const { config: freshConfig } = await import("@/config");
+
+    const page = await FreshHomePage();
+    const shell = await RootLayout({ children: page });
+
+    expect(shell.props.lang).toBe("en");
+    expect(renderToStaticMarkup(page)).toContain(`<h1>${freshConfig.appName}</h1>`);
   });
 });
