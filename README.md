@@ -36,6 +36,24 @@ npx playwright install chromium
 | `npm run test:build` | Production build, then checks the client bundles reference only the public Supabase variables |
 | `npm run db:types` | Regenerate `src/lib/supabase/database.types.ts` from the local database |
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request to `main` and every push to `main`. Each check is its own job, so it shows as its own status check, and they run in parallel:
+
+| Check       | What it runs |
+| ----------- | ------------ |
+| `typecheck` | `npx next typegen`, then `npm run typecheck` |
+| `lint`      | `npm run lint` |
+| `unit`      | `npm run test:unit` |
+| `build`     | `npm run test:build` (production build plus the client-bundle check) |
+| `e2e`       | `npm run test:e2e`, with the Playwright browser cached per Playwright version |
+| `db`        | Starts a fresh local Supabase, `supabase db reset --local` (every migration, then the seed), then `npm run test:db` |
+| `secrets`   | gitleaks over the PR's commits (or the pushed commits on `main`), using `.gitleaks.toml` |
+
+Together `typecheck`, `lint` and `unit` are what `npm test` runs locally. The jobs use no repository secrets and the token is read-only, so pull requests from forks run the same way.
+
+**If `secrets` fails**, its log names the rule, the file, the line and the commit; the value itself is redacted. Treat the secret as leaked: rotate it first, then remove it from the branch history (rewrite the commits that added it) before the PR can merge. Deleting it in a new commit is not enough, because the scan covers every commit in the PR.
+
 ## Configuration
 
 App-wide values (app name, site URL, feature flags, limits) come only from `src/config`, which reads and validates the environment. The app name comes from `NEXT_PUBLIC_APP_NAME`; `npm test` fails if the name is written anywhere else under `src/`. Canonical, Open Graph and manifest URLs are built from `NEXT_PUBLIC_SITE_URL`, so a custom domain is only an env change; `npm test` fails if an absolute `http(s)://` URL is written under `src/` outside `src/config`.
