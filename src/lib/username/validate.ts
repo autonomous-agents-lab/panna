@@ -1,5 +1,5 @@
 import { RESERVED_USERNAMES, USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@/config/usernames";
-import type { UsernameErrorCode } from "@/contracts/username";
+import { USERNAME_INPUT_CHARACTERS, type UsernameErrorCode } from "@/contracts/username";
 
 export type UsernameValidation =
   | { ok: true; username: string }
@@ -32,8 +32,7 @@ export function validateUsername(
 
   if (length < USERNAME_MIN_LENGTH) return { ok: false, code: "too_short" };
   if (length > USERNAME_MAX_LENGTH) return { ok: false, code: "too_long" };
-  // Before case-folding, so letters that lowercase to ASCII (the Kelvin sign K → k) don't pass.
-  if (!/^[A-Za-z0-9_]+$/.test(trimmed)) return { ok: false, code: "invalid_characters" };
+  if (!USERNAME_INPUT_CHARACTERS.test(trimmed)) return { ok: false, code: "invalid_characters" };
   const username = trimmed.toLowerCase();
   if (!/^[a-z]/.test(username)) return { ok: false, code: "must_start_with_letter" };
   if (reserved.includes(username)) return { ok: false, code: "reserved" };

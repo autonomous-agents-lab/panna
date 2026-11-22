@@ -24,5 +24,11 @@ export const USERNAME_PATTERN = new RegExp(
 
 export const usernameSchema = z.string().regex(USERNAME_PATTERN);
 
+/**
+ * Characters a typed username may contain, checked before case-folding so letters that lowercase
+ * to ASCII (the Kelvin sign K → k) are rejected rather than folded into a valid name.
+ */
+export const USERNAME_INPUT_CHARACTERS = /^[A-Za-z0-9_]+$/;
+
 /** `rpc("username_held_until", { p_username })` response: when the name is free again, or null if it isn't held. */
 export const usernameHeldUntilResultSchema = timestampSchema.nullable();

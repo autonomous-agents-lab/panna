@@ -5,7 +5,7 @@ import { TEXT_LIMITS } from "@/config/books";
 import { bookSchema } from "./book";
 import { nonBlankTextWithin, textWithin, timestampSchema } from "./fields";
 import { languageSchema } from "./language";
-import { usernameSchema } from "./username";
+import { USERNAME_INPUT_CHARACTERS, usernameSchema } from "./username";
 
 /** A row of `public.profiles`. Keys are exactly the table's columns; there is no email or auth data. */
 export const profileSchema = z.strictObject({
@@ -25,11 +25,12 @@ export type Profile = z.infer<typeof profileSchema>;
 
 /**
  * `rpc("create_profile_with_book", args)` arguments. Keys are the function's parameters. The
- * username is trimmed and lowercased here, as the function does; the reserved list and history
- * holds are checked by `validateUsername` in src/lib/username and again by the function.
+ * username's characters are checked before it is lowercased, as `validateUsername` does, then it
+ * is trimmed and lowercased as the function does; the reserved list and history holds are checked
+ * by `validateUsername` in src/lib/username and again by the function.
  */
 export const createProfileWithBookInputSchema = z.strictObject({
-  p_username: z.string().trim().toLowerCase().pipe(usernameSchema),
+  p_username: z.string().trim().regex(USERNAME_INPUT_CHARACTERS).toLowerCase().pipe(usernameSchema),
   p_display_name: z.string().trim().pipe(nonBlankTextWithin(TEXT_LIMITS.displayName)),
   p_preferred_language: languageSchema,
 });

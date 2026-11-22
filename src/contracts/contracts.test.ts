@@ -11,6 +11,7 @@ import {
 } from "@/config/books";
 import { RESERVED_USERNAMES, USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@/config/usernames";
 import type { Database, Tables } from "@/lib/supabase/database.types";
+import { validateUsername } from "@/lib/username";
 
 import {
   USERNAME_PATTERN,
@@ -243,6 +244,15 @@ describe("schemas", () => {
     ).toBe(false);
     expect(
       createProfileWithBookInputSchema.safeParse({ p_username: "1asha", p_display_name: "A", p_preferred_language: "en" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects a username with a letter that only lowercases to ASCII, as validateUsername does", () => {
+    const kelvin = "\u{212a}sha";
+    expect(validateUsername(kelvin)).toEqual({ ok: false, code: "invalid_characters" });
+    expect(
+      createProfileWithBookInputSchema.safeParse({ p_username: kelvin, p_display_name: "A", p_preferred_language: "en" })
         .success,
     ).toBe(false);
   });
