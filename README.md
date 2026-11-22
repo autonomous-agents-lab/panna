@@ -124,7 +124,21 @@ npx supabase stop               # stop the stack when you are done
 Rules:
 
 - An applied migration is never edited. To change something, add a new migration.
-- Migrations only add or change; a migration never drops user data. User content is soft-deleted with `archived_at`/`deleted_at`.
+- Migrations only add or change; a migration never drops user data. User content is soft-deleted with `archived_at`/`deleted_at`. `npm test` fails if a migration drops a table, schema or column, truncates, or deletes rows.
+
+### Profiles, books and usernames
+
+- `profiles`: one per auth user (`id` is the auth user id). Public profile data only, no email or auth data.
+- `books`: exactly one per profile (`owner_id` is unique).
+- `username_history`: usernames a profile gave up, held until `reusable_after`. Clients can't read it. They call `username_held_until(name)`, which returns only when the name becomes free.
+
+Clients create their profile and book together by calling the `create_profile_with_book(p_username, p_display_name, p_preferred_language)` RPC. It trims and lowercases the username and rejects reserved names (`username_reserved`) and held names (`username_held`). A name already in use, whatever its case, fails on `profiles_username_lower_key`. `usernameErrorFromDb` in `src/lib/username` maps these errors to the codes that `validateUsername` uses, so the UI shows one set of Hindi and English messages.
+
+Anyone can read profiles and books, except those whose owner is deactivated (`deactivated_at`); owners still see their own. Signed-in users can update only their own editable columns. Changing an id, `owner_id`, the username or `deactivated_at`, inserting, or deleting raises `42501`.
+
+Cover styles, fonts, content languages, username limits, the reserved usernames and text length limits are defined in `src/config` (`books.ts`, `usernames.ts`). They are mirrored in the database as check constraints, column defaults and `is_reserved_username`. To change one, add a migration and change the config in the same PR. `src/contracts/contracts.test.ts` fails if the two disagree. The types and zod schemas in `src/contracts` (`Profile`, `Book`, `CoverStyle`, `FontId`, `Language`) are built from the same config.
+
+**Deleting a user fails while they have a profile.** `profiles.id` references `auth.users` without `on delete cascade`, because user content is never hard-deleted. Removing a user from the Supabase dashboard therefore fails on the foreign key. In the product, removing an account means deactivating it.
 
 ## Languages (Hindi and English)
 
