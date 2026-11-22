@@ -17,6 +17,17 @@ const LANGUAGES = [
   { browserLocale: "hi-IN", lang: "hi", t: hi },
 ] as const;
 
+const SIGN_IN_UNAVAILABLE =
+  "/login says sign-in is unavailable: the app was built without NEXT_PUBLIC_SUPABASE_URL and " +
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY. For a deploy, set both in Netlify for every deploy context (Deploy Previews " +
+  'too) and redeploy; locally, see "Local Supabase" in the README.';
+
+/** Opens `url`, which shows the sign-in form, and fails at once with the cause if the deploy can't offer sign-in. */
+async function gotoSignIn(page: Page, url: string, t: Record<"auth.login.unavailable", string> = en) {
+  await page.goto(url);
+  await expect(page.getByText(t["auth.login.unavailable"]), SIGN_IN_UNAVAILABLE).toHaveCount(0);
+}
+
 async function expectNoAxeViolations(page: Page) {
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
   expect(violations).toEqual([]);
@@ -34,7 +45,7 @@ for (const { browserLocale, lang, t } of LANGUAGES) {
     test.use({ locale: browserLocale });
 
     test("/login is a translated, noindex page with a labelled email field and no axe violations", async ({ page }) => {
-      await page.goto("/login");
+      await gotoSignIn(page, "/login", t);
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
       await expect(page).toHaveTitle(`${t["auth.login.title"]} · ${appName}`);
       await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toHaveText(t["auth.login.title"]);
@@ -45,7 +56,7 @@ for (const { browserLocale, lang, t } of LANGUAGES) {
     });
 
     test("an invalid email shows an inline, labelled error in that language", async ({ page }) => {
-      await page.goto("/login");
+      await gotoSignIn(page, "/login", t);
       const email = page.getByLabel(t["auth.login.emailLabel"]);
       await email.fill("not-an-email");
       await page.getByRole("button", { name: t["auth.login.submit"] }).click();
@@ -61,7 +72,7 @@ for (const { browserLocale, lang, t } of LANGUAGES) {
     });
 
     test("a failed or expired link lands on /login with a translated error and the email field ready", async ({ page }) => {
-      await page.goto("/auth/callback?code=bogus&next=%2Fsettings");
+      await gotoSignIn(page, "/auth/callback?code=bogus&next=%2Fsettings", t);
       await expect(page).toHaveURL("/login?error=link_invalid&next=%2Fsettings");
       await expect(page.getByRole("alert").filter({ hasText: t["auth.error.linkInvalid"] })).toBeVisible();
       await expect(page.getByLabel(t["auth.login.emailLabel"])).toBeFocused();
@@ -75,7 +86,7 @@ test.describe("sign-in with the keyboard", () => {
   test.use({ locale: "en-US" });
 
   test("every control on /login is reached in order, with a visible focus ring", async ({ page }) => {
-    await page.goto("/login");
+    await gotoSignIn(page, "/login");
     const email = page.getByLabel(en["auth.login.emailLabel"]);
 
     await page.keyboard.press("Tab");
@@ -110,7 +121,7 @@ test("Continue with Google goes to Supabase's Google flow with the callback buil
   // Google can't be completed without real credentials, so stop at Supabase's authorize step.
   const isAuthorize = (url: URL) => url.pathname.endsWith("/auth/v1/authorize");
   await page.route(isAuthorize, (route) => route.fulfill({ status: 200, contentType: "text/plain", body: "" }));
-  await page.goto("/login?next=%2Fsettings");
+  await gotoSignIn(page, "/login?next=%2Fsettings");
 
   const [authorize] = await Promise.all([
     page.waitForRequest((request) => isAuthorize(new URL(request.url()))),
