@@ -103,6 +103,9 @@ isOneToOne: false
 "is_reserved_username":
 { Args: { "p_username": string }; Returns: boolean
                            },
+"trim_whitespace":
+{ Args: { "p_text": string }; Returns: string
+                           },
 "username_held_until":
 { Args: { "p_username": string }; Returns: string
                            }

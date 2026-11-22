@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(62);
+select plan(69);
 
 -- Helpers ------------------------------------------------------------------------------------
 
@@ -162,6 +162,8 @@ select throws_ok(
 );
 select is(public.username_held_until(' HeldName '), '2999-01-01'::timestamptz,
   'username_held_until returns the latest future hold');
+select is(public.username_held_until(U&'\0009heldname\00A0'), '2999-01-01'::timestamptz,
+  'username_held_until trims tabs and no-break spaces, as the app validator does');
 select is(public.username_held_until('freename'), null, 'a hold in the past returns null');
 select is(public.username_held_until('nobody_has_it'), null, 'a name with no history returns null');
 select is_empty($$select * from public.username_history$$, 'authenticated reads no username history rows');
@@ -170,11 +172,21 @@ select throws_ok(
     values ('44444444-4444-4444-8444-444444444444', 'grab', '2999-01-01')$$,
   '42501', null, 'authenticated cannot write username history'
 );
+select throws_ok(
+  $$select public.create_profile_with_book('freename', U&'\00A0\0009\3000', 'en')$$,
+  '23514', null, 'a display name of only no-break, tab and ideographic spaces is rejected by the function'
+);
 select lives_ok(
-  $$select public.create_profile_with_book('freename', 'Dev', 'en')$$,
+  $$select public.create_profile_with_book(U&'\3000freename\0009', U&'\00A0Dev\0009', 'en')$$,
   'a name whose hold has passed can be taken'
 );
 reset role;
+select results_eq(
+  $$select p.username, p.display_name, b.title from public.profiles p join public.books b on b.owner_id = p.id
+    where p.id = '44444444-4444-4444-8444-444444444444'$$,
+  $$values ('freename'::text, 'Dev'::text, 'Dev'::text)$$,
+  'the function trims every whitespace JavaScript trim does from the username and display name'
+);
 
 select test_helpers.as_anon();
 select is(public.username_held_until('heldname'), '2999-01-01'::timestamptz, 'anon can ask when a name is free');
@@ -321,6 +333,14 @@ select throws_ok($$update public.profiles set display_name = repeat('x', 51) whe
   '23514', null, 'a display name over 50 characters is rejected');
 select throws_ok($$update public.profiles set display_name = '   ' where id = '22222222-2222-4222-8222-222222222222'$$,
   '23514', null, 'a blank display name is rejected');
+select throws_ok($$update public.profiles set display_name = E'\t' where id = '22222222-2222-4222-8222-222222222222'$$,
+  '23514', null, 'a tab-only display name is rejected, as profileSchema rejects it');
+select throws_ok($$update public.profiles set display_name = U&'\00A0' where id = '22222222-2222-4222-8222-222222222222'$$,
+  '23514', null, 'a no-break-space-only display name is rejected, as profileSchema rejects it');
+select throws_ok($$update public.books set title = U&'\3000\FEFF' where owner_id = '22222222-2222-4222-8222-222222222222'$$,
+  '23514', null, 'a title of only ideographic space and BOM is rejected, as bookSchema rejects it');
+select lives_ok($$update public.profiles set display_name = U&'\00A0Bina\0009' where id = '22222222-2222-4222-8222-222222222222'$$,
+  'a display name with whitespace around text is accepted, as profileSchema accepts it');
 select throws_ok($$update public.profiles set bio = repeat('x', 161) where id = '22222222-2222-4222-8222-222222222222'$$,
   '23514', null, 'a bio over 160 characters is rejected');
 select throws_ok($$update public.books set title = repeat('x', 101) where owner_id = '22222222-2222-4222-8222-222222222222'$$,

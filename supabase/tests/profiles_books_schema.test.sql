@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(40);
+select plan(44);
 
 -- Tables, RLS and columns (AC-1). The exact column lists prove there is no email or other auth
 -- data in these tables (AC-2).
@@ -131,6 +131,19 @@ select ok(
 );
 select ok(public.is_reserved_username(' Admin '), 'is_reserved_username trims and case-folds');
 select ok(not public.is_reserved_username('asha'), 'is_reserved_username allows an ordinary name');
+select ok(public.is_reserved_username(U&'\0009Admin\00A0'), 'is_reserved_username trims tabs and no-break spaces too');
+select is(
+  public.trim_whitespace(U&'\0009\000A\00A0\2028 Asha  Rao\3000\FEFF\000D'),
+  'Asha  Rao',
+  'trim_whitespace strips what JavaScript trim strips, from both ends only'
+);
+select is(public.trim_whitespace(U&'\0085Asha\200B'), U&'\0085Asha\200B',
+  'trim_whitespace keeps characters JavaScript trim keeps (NEL, zero-width space)');
+select ok(
+  not has_function_privilege('anon', 'public.trim_whitespace(text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.trim_whitespace(text)', 'execute'),
+  'clients cannot call trim_whitespace directly'
+);
 select has_trigger('public', 'profiles', 'profiles_set_updated_at', 'profiles keeps updated_at current');
 select has_trigger('public', 'books', 'books_set_updated_at', 'books keeps updated_at current');
 

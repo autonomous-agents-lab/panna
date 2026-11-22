@@ -23,6 +23,7 @@ describe("validateUsername", () => {
     ["asha.k", "invalid_characters"],
     ["आशाजी", "invalid_characters"],
     ["asha!", "invalid_characters"],
+    ["\u{212a}sha", "invalid_characters"],
     ["1asha", "must_start_with_letter"],
     ["_asha", "must_start_with_letter"],
     ["admin", "reserved"],

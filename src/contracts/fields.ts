@@ -16,7 +16,17 @@ export function textWithin({ min, max }: TextLimit) {
   );
 }
 
+/**
+ * The characters `String.prototype.trim` strips, as a regex class body. The migrations' not-blank
+ * checks and `public.trim_whitespace` use the same set (contracts.test.ts compares them), because
+ * Postgres `btrim` strips only spaces and `[:space:]` depends on the database locale.
+ */
+export const WHITESPACE_CHARACTERS =
+  "\\u0009-\\u000D\\u0020\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF";
+
+const NOT_ONLY_WHITESPACE = new RegExp(`[^${WHITESPACE_CHARACTERS}]`);
+
 /** Like `textWithin`, and not only whitespace. */
 export function nonBlankTextWithin(limit: TextLimit) {
-  return textWithin(limit).refine((value) => value.trim() !== "", { message: "Must not be blank" });
+  return textWithin(limit).refine((value) => NOT_ONLY_WHITESPACE.test(value), { message: "Must not be blank" });
 }

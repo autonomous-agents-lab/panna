@@ -26,13 +26,15 @@ export function validateUsername(
   raw: string,
   { reserved = RESERVED_USERNAMES, heldUntil = null, now = new Date() }: ValidateUsernameOptions = {},
 ): UsernameValidation {
-  const username = normalizeUsername(raw);
+  const trimmed = raw.trim();
   // Code points, the way Postgres char_length counts them.
-  const length = [...username].length;
+  const length = [...trimmed].length;
 
   if (length < USERNAME_MIN_LENGTH) return { ok: false, code: "too_short" };
   if (length > USERNAME_MAX_LENGTH) return { ok: false, code: "too_long" };
-  if (!/^[a-z0-9_]+$/.test(username)) return { ok: false, code: "invalid_characters" };
+  // Before case-folding, so letters that lowercase to ASCII (the Kelvin sign K → k) don't pass.
+  if (!/^[A-Za-z0-9_]+$/.test(trimmed)) return { ok: false, code: "invalid_characters" };
+  const username = trimmed.toLowerCase();
   if (!/^[a-z]/.test(username)) return { ok: false, code: "must_start_with_letter" };
   if (reserved.includes(username)) return { ok: false, code: "reserved" };
   if (heldUntil && heldUntil.getTime() > now.getTime()) return { ok: false, code: "held" };

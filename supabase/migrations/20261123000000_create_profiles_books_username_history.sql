@@ -3,9 +3,33 @@
 -- The fixed lists and limits below mirror src/config (books.ts, usernames.ts). Change both
 -- together, through a new migration; src/contracts/contracts.test.ts fails if they disagree.
 --
--- Clients may read profiles and books and update a few of their own columns. Every other write
--- goes through a SECURITY DEFINER function, so a denied write raises 42501 instead of silently
--- affecting zero rows. User content is never hard-deleted: nothing here cascades on delete.
+-- Clients may read profiles and books and update a few of their own columns. Inserts, deletes and
+-- writes to any other column raise 42501 (column grants, revoked INSERT/DELETE); every other write
+-- goes through a SECURITY DEFINER function. An update to a row the caller doesn't own matches no
+-- rows under RLS. User content is never hard-deleted: nothing here cascades on delete.
+--
+-- "Whitespace" below is exactly what JavaScript's String.prototype.trim strips, written as the
+-- regex class [\x9-\xD\x20\xA0\x1680\x2000-\x200A\x2028\x2029\x202F\x205F\x3000\xFEFF].
+-- Postgres btrim strips only spaces and [:space:] depends on the locale, so neither would agree
+-- with the zod schemas in src/contracts (WHITESPACE_CHARACTERS in src/contracts/fields.ts).
+-- src/contracts/contracts.test.ts fails if any copy here matches a different set of characters.
+
+-- Strips leading and trailing whitespace, as JavaScript's trim does.
+create function public.trim_whitespace(p_text text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select regexp_replace(
+    p_text,
+    '^[\x9-\xD\x20\xA0\x1680\x2000-\x200A\x2028\x2029\x202F\x205F\x3000\xFEFF]+|[\x9-\xD\x20\xA0\x1680\x2000-\x200A\x2028\x2029\x202F\x205F\x3000\xFEFF]+$',
+    '',
+    'g'
+  );
+$$;
+
+revoke execute on function public.trim_whitespace(text) from public, anon, authenticated;
 
 create function public.set_updated_at()
 returns trigger
@@ -30,7 +54,8 @@ create table public.profiles (
     constraint profiles_username_format_check check (username ~ '^[a-z][a-z0-9_]{2,29}$'),
   display_name text not null
     constraint profiles_display_name_length_check check (char_length(display_name) between 1 and 50)
-    constraint profiles_display_name_not_blank_check check (btrim(display_name) <> ''),
+    constraint profiles_display_name_not_blank_check
+      check (display_name ~ '[^\x9-\xD\x20\xA0\x1680\x2000-\x200A\x2028\x2029\x202F\x205F\x3000\xFEFF]'),
   avatar_path text
     constraint profiles_avatar_path_length_check check (char_length(avatar_path) between 1 and 512),
   bio text
@@ -63,7 +88,8 @@ create table public.books (
     references public.profiles (id),
   title text not null
     constraint books_title_length_check check (char_length(title) between 1 and 100)
-    constraint books_title_not_blank_check check (btrim(title) <> ''),
+    constraint books_title_not_blank_check
+      check (title ~ '[^\x9-\xD\x20\xA0\x1680\x2000-\x200A\x2028\x2029\x202F\x205F\x3000\xFEFF]'),
   subtitle text
     constraint books_subtitle_length_check check (char_length(subtitle) between 0 and 150),
   cover_style text not null default 'classic'
@@ -163,7 +189,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select lower(btrim(p_username)) = any (array[
+  select lower(public.trim_whitespace(p_username)) = any (array[
     'api', 'login', 'logout', 'signup', 'signin', 'auth', 'callback', 'settings', 'onboarding',
     'feed', 'about', 'admin', 'help', 'terms', 'privacy', 'sitemap.xml', 'robots.txt',
     'manifest.webmanifest', 'favicon.ico', '_next', 'static', 'public', 'assets', 'new', 'edit',
@@ -185,7 +211,7 @@ set search_path = ''
 as $$
   select max(h.reusable_after)
   from public.username_history h
-  where lower(h.username) = lower(btrim(p_username))
+  where lower(h.username) = lower(public.trim_whitespace(p_username))
     and h.reusable_after > now();
 $$;
 
@@ -206,8 +232,8 @@ set search_path = ''
 as $$
 declare
   v_user_id uuid := auth.uid();
-  v_username text := lower(btrim(p_username));
-  v_display_name text := btrim(p_display_name);
+  v_username text := lower(public.trim_whitespace(p_username));
+  v_display_name text := public.trim_whitespace(p_display_name);
   v_profile public.profiles;
   v_book public.books;
 begin

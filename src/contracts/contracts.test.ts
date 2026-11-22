@@ -30,6 +30,7 @@ import {
   type Language,
   type Profile,
 } from "./index";
+import { WHITESPACE_CHARACTERS } from "./fields";
 import {
   arrayLiteralValues,
   charLengthRange,
@@ -45,6 +46,26 @@ import {
 const migrations = readMigrations();
 const check = (name: string) => latestCheckConstraint(migrations, name);
 const sorted = (values: readonly string[]) => [...values].sort();
+
+function groups(pattern: RegExp, text: string): string[] {
+  const match = pattern.exec(text);
+  if (!match) throw new Error(`Expected ${pattern}, got: ${text}`);
+  return match.slice(1);
+}
+
+/** A Postgres bracket-expression body as a one-character JS regex; its `\xhhh` escapes become `\u{hhh}`. */
+const postgresCharacterClass = (body: string) =>
+  new RegExp(`^[${body.replace(/\\x([0-9a-f]+)/gi, "\\u{$1}")}]$`, "u");
+
+/** Code points (hex) where `whitespace` disagrees with what `String.prototype.trim` strips. */
+function disagreementsWithTrim(whitespace: RegExp): string[] {
+  const disagreements: string[] = [];
+  for (let codePoint = 0; codePoint <= 0x10ffff; codePoint++) {
+    const char = String.fromCodePoint(codePoint);
+    if ((char.trim() === "") !== whitespace.test(char)) disagreements.push(codePoint.toString(16));
+  }
+  return disagreements;
+}
 
 const profileRow: Profile = {
   id: "5b3c1c1e-8a9f-4f43-9d55-0b6a3c2f4e10",
@@ -104,6 +125,15 @@ describe("config lists agree with the database check constraints (AC-8)", () => 
     expect(arrayLiteralValues(latestFunctionBody(migrations, "is_reserved_username"))).toEqual([
       ...RESERVED_USERNAMES,
     ]);
+  });
+
+  it("whitespace, in the not-blank checks and public.trim_whitespace, is what trim strips", () => {
+    const classes = new Set([
+      ...groups(/^display_name ~ '\[\^([^\]]*)\]'$/, check("profiles_display_name_not_blank_check")),
+      ...groups(/^title ~ '\[\^([^\]]*)\]'$/, check("books_title_not_blank_check")),
+      ...groups(/'\^\[([^\]]*)\]\+\|\[([^\]]*)\]\+\$'/, latestFunctionBody(migrations, "trim_whitespace")),
+    ]);
+    for (const body of classes) expect(disagreementsWithTrim(postgresCharacterClass(body))).toEqual([]);
   });
 
   it.each([
@@ -168,6 +198,26 @@ describe("schemas", () => {
     expect(bookSchema.safeParse({ ...bookRow, subtitle: "" }).success).toBe(true);
   });
 
+  it("WHITESPACE_CHARACTERS is exactly the set String.prototype.trim strips", () => {
+    expect(disagreementsWithTrim(new RegExp(`^[${WHITESPACE_CHARACTERS}]$`, "u"))).toEqual([]);
+  });
+
+  it.each([
+    ["tab", "\t"],
+    ["newline", "\n"],
+    ["no-break space", "\xa0"],
+    ["ideographic space", "\u{3000}"],
+    ["byte order mark", "\u{feff}"],
+  ])("reject a %s-only display name and title, as the database's not-blank checks do", (_name, blank) => {
+    expect(profileSchema.safeParse({ ...profileRow, display_name: blank }).success).toBe(false);
+    expect(bookSchema.safeParse({ ...bookRow, title: blank }).success).toBe(false);
+  });
+
+  it("accept text surrounded by whitespace, as the database does", () => {
+    expect(profileSchema.safeParse({ ...profileRow, display_name: "\xa0Asha\t" }).success).toBe(true);
+    expect(bookSchema.safeParse({ ...bookRow, title: "\u{3000}आशा\n" }).success).toBe(true);
+  });
+
   it("match the username format check", () => {
     expect(USERNAME_PATTERN.source).toBe(
       check("profiles_username_format_check").replace(/^username\s+~\s+'(.*)'$/, "$1"),
@@ -180,6 +230,17 @@ describe("schemas", () => {
     expect(
       createProfileWithBookInputSchema.parse({ p_username: "  Asha ", p_display_name: " Asha ", p_preferred_language: "en" }),
     ).toEqual({ p_username: "asha", p_display_name: "Asha", p_preferred_language: "en" });
+    expect(
+      createProfileWithBookInputSchema.parse({
+        p_username: "\u{3000}Asha\t",
+        p_display_name: "\xa0Asha\u{feff}",
+        p_preferred_language: "en",
+      }),
+    ).toEqual({ p_username: "asha", p_display_name: "Asha", p_preferred_language: "en" });
+    expect(
+      createProfileWithBookInputSchema.safeParse({ p_username: "asha", p_display_name: "\xa0\t", p_preferred_language: "en" })
+        .success,
+    ).toBe(false);
     expect(
       createProfileWithBookInputSchema.safeParse({ p_username: "1asha", p_display_name: "A", p_preferred_language: "en" })
         .success,
