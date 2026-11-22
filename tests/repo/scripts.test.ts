@@ -14,7 +14,8 @@ describe("npm scripts", () => {
 
   it("runs typecheck, lint and unit tests in order, stopping at the first failure", () => {
     expect(scripts.test).toBe("npm run typecheck && npm run lint && npm run test:unit");
-    expect(scripts.typecheck).toBe("tsc --noEmit");
+    // Route types in .next/types are git-ignored, so regenerate them for this tree before tsc reads them.
+    expect(scripts.typecheck).toBe("next typegen && tsc --noEmit");
     expect(scripts.lint).toBe("eslint .");
     expect(scripts["test:unit"]).toBe("vitest run");
   });
