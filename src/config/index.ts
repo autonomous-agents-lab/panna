@@ -3,6 +3,8 @@ import { loadSupabaseConfig, type SupabaseConfig } from "./supabase";
 
 export type { Config } from "./schema";
 export type { SupabaseConfig } from "./supabase";
+export * from "./books";
+export * from "./usernames";
 
 // Each variable is read literally so Next.js can inline it into client bundles.
 export const config = loadConfig({

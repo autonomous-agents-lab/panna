@@ -19,4 +19,11 @@ export const en = {
   "error.body": "This page couldn’t be shown. Please try again, or go back to the home page.",
   "error.retry": "Try again",
   "error.home": "Go to the home page",
+  "username.error.too_short": "Usernames need at least {min} characters.",
+  "username.error.too_long": "Usernames can have at most {max} characters.",
+  "username.error.invalid_characters": "Use only English letters a to z, digits and underscores (_).",
+  "username.error.must_start_with_letter": "Usernames must start with a letter.",
+  "username.error.reserved": "That username is reserved. Please choose another.",
+  "username.error.held": "That username was used recently and isn’t available yet.",
+  "username.error.taken": "That username is already taken.",
 } as const satisfies Record<string, string>;
