@@ -16,6 +16,8 @@ type Step = {
   "continue-on-error"?: unknown;
 };
 type Job = {
+  if?: string;
+  needs?: string | string[];
   "runs-on": string;
   "timeout-minutes"?: number;
   permissions?: unknown;
@@ -26,6 +28,7 @@ type Workflow = {
   on: Record<string, { branches?: string[]; types?: string[] }>;
   permissions: unknown;
   concurrency: { group: string; "cancel-in-progress": string };
+  env: Record<string, string | number>;
   jobs: Record<string, Job>;
 };
 
@@ -53,6 +56,7 @@ const NODE_CHECKS = {
   unit: "npm run test:unit",
   build: "npm run test:build",
   e2e: "npm run test:e2e",
+  "e2e-preview": "npm run test:e2e",
 } as const;
 
 describe("CI triggers and Node (AC-1, AC-7)", () => {
@@ -64,7 +68,7 @@ describe("CI triggers and Node (AC-1, AC-7)", () => {
 
   it("runs every check as its own job, so each reports its own status check", () => {
     expect(Object.keys(workflow.jobs).sort()).toEqual(
-      ["build", "db", "e2e", "lint", "secrets", "typecheck", "unit"].sort(),
+      ["build", "db", "e2e", "e2e-preview", "lint", "preview", "production", "secrets", "typecheck", "unit"].sort(),
     );
   });
 
@@ -96,6 +100,56 @@ describe("CI fails on a failing check (AC-2)", () => {
     for (const step of allSteps) {
       expect(step.run ?? "").not.toMatch(/\|\|\s*true|set \+e/);
     }
+  });
+});
+
+describe("Netlify deploy jobs (BOOK-14)", () => {
+  const WAIT = "node scripts/wait-for-deploy.mjs";
+  const waitStep = (name: string) => {
+    const found = job(name).steps.find((step) => step.run === WAIT);
+    if (!found) throw new Error(`${name} job doesn't run ${WAIT}`);
+    return found;
+  };
+
+  it("keeps the deploy URLs and the wait timeout in one place each", () => {
+    expect(workflow.env.PRODUCTION_URL).toBe("https://panna-book.netlify.app");
+    expect(workflow.env.PREVIEW_URL).toBe(
+      "https://deploy-preview-${{ github.event.pull_request.number }}--panna-book.netlify.app",
+    );
+  });
+
+  it("waits for less time than the job may run, so a timeout fails with the script's message (AC-4)", () => {
+    const minutes = Number(workflow.env.WAIT_TIMEOUT_MINUTES);
+    expect(minutes).toBeGreaterThan(0);
+    for (const name of ["preview", "production"]) {
+      expect(minutes, name).toBeLessThan(job(name)["timeout-minutes"] ?? 0);
+    }
+  });
+
+  it("on pull requests only, waits for the Deploy Preview of the PR's head commit (AC-2)", () => {
+    expect(job("preview").if).toBe("github.event_name == 'pull_request'");
+    expect(waitStep("preview").env).toEqual({
+      DEPLOY_URL: "${{ env.PREVIEW_URL }}",
+      EXPECTED_VERSION: "${{ github.event.pull_request.head.sha }}",
+    });
+  });
+
+  it("runs the Playwright suite, axe included, against the ready preview (AC-3)", () => {
+    expect(job("e2e-preview").needs).toBe("preview");
+    const testStep = job("e2e-preview").steps.find((step) => step.run === "npm run test:e2e");
+    expect(testStep?.env).toEqual({
+      PLAYWRIGHT_BASE_URL: "${{ env.PREVIEW_URL }}",
+      NEXT_PUBLIC_SITE_URL: "${{ env.PRODUCTION_URL }}",
+    });
+  });
+
+  it("after a push to main, waits for production to serve that commit (AC-1, AC-5)", () => {
+    expect(job("production").if).toBe("github.event_name == 'push'");
+    expect(workflow.on.push).toEqual({ branches: ["main"] });
+    expect(waitStep("production").env).toEqual({
+      DEPLOY_URL: "${{ env.PRODUCTION_URL }}",
+      EXPECTED_VERSION: "${{ github.sha }}",
+    });
   });
 });
 
@@ -186,13 +240,16 @@ describe("CI speed (AC-5)", () => {
     }
   });
 
-  it("caches Playwright browsers per Playwright version and installs them only on a miss", () => {
-    const cache = stepUsing("e2e", "actions/cache");
-    expect(cache.with?.path).toBe("~/.cache/ms-playwright");
-    expect(cache.with?.key).toContain("${{ steps.playwright.outputs.version }}");
-    const install = job("e2e").steps.find((step) => step.run === "npx playwright install --with-deps chromium");
-    expect(install?.if).toBe(`steps.${cache.id}.outputs.cache-hit != 'true'`);
-  });
+  it.each(["e2e", "e2e-preview"])(
+    "%s caches Playwright browsers per Playwright version and installs them only on a miss",
+    (name) => {
+      const cache = stepUsing(name, "actions/cache");
+      expect(cache.with?.path).toBe("~/.cache/ms-playwright");
+      expect(cache.with?.key).toContain("${{ steps.playwright.outputs.version }}");
+      const install = job(name).steps.find((step) => step.run === "npx playwright install --with-deps chromium");
+      expect(install?.if).toBe(`steps.${cache.id}.outputs.cache-hit != 'true'`);
+    },
+  );
 
   it("caches the Next build cache", () => {
     expect(stepUsing("build", "actions/cache").with?.path).toBe(".next/cache");

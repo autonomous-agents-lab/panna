@@ -25,6 +25,8 @@ export default defineConfig({
         "src/lib/**",
         "src/app/**",
         "eslint-rules/**",
+        "scripts/**",
+        "e2e/target.ts",
         "tests/guards/**",
       ],
       // fonts.ts is next/font build-time configuration, which only runs inside Next.

@@ -1,12 +1,14 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+import { TEST_ROUTES_TAG } from "./target";
+
 const WCAG_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 
 const PAGES = [
   { name: "home", path: "/" },
   { name: "404", path: "/this/does/not/exist" },
-  { name: "error", path: "/test-only/throw" },
+  { name: "error", path: "/test-only/throw", tag: TEST_ROUTES_TAG },
 ];
 
 for (const { browserLocale, lang } of [
@@ -16,8 +18,8 @@ for (const { browserLocale, lang } of [
   test.describe(`in ${browserLocale}`, () => {
     test.use({ locale: browserLocale });
 
-    for (const { name, path } of PAGES) {
-      test(`the ${name} page has no axe violations`, async ({ page }) => {
+    for (const { name, path, tag } of PAGES) {
+      test(`the ${name} page has no axe violations`, { tag: tag ? [tag] : [] }, async ({ page }) => {
         await page.goto(path);
         await expect(page.locator("html")).toHaveAttribute("lang", lang);
         await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toBeVisible();

@@ -1,0 +1,16 @@
+# Netlify site `panna-book`: every pull request gets a Deploy Preview and `main` deploys to production.
+# No values or secrets live here; those are set in the Netlify UI. The build command only maps
+# Netlify's own variables onto ours, so code under src/ never reads a host variable:
+# - APP_VERSION (reported by /api/health) is the commit Netlify is building.
+# - NEXT_PUBLIC_SITE_URL defaults to Netlify's production URL, so Deploy Previews point their
+#   canonical URLs at production. A value set in the Netlify UI wins.
+[build]
+  command = "APP_VERSION=$COMMIT_REF NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-$URL} npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# The Next.js runtime, pinned as an exact devDependency. Never imported by the app.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -6,6 +6,8 @@ Read `docs/product-brief.md` first. It's the source of truth for what we're buil
 - Next.js (App Router) + TypeScript `strict`. Node 22.
 - Supabase (Postgres, Auth, Storage) via `@supabase/ssr`. Local Supabase in Docker (`npx supabase start`) for development and tests.
 - Vitest for unit/component tests, Playwright for end-to-end. GitHub Actions CI. Netlify hosting (keep app code host-agnostic).
+- Netlify site `panna-book`, configured in `netlify.toml` (Node 22, `@netlify/plugin-nextjs`). Deployed env values live only in Netlify, never in the repo.
+- Host variables (e.g. Netlify's `COMMIT_REF`, `URL`) are mapped onto ours in `netlify.toml` and never read in `src/`; no host-specific import (e.g. `@netlify/*`) in `src/` either. A guard test enforces this.
 
 ## Commands (keep these working; agents and CI rely on them)
 - `npm run dev`: local app
@@ -44,3 +46,4 @@ Read `docs/product-brief.md` first. It's the source of truth for what we're buil
 ## Git
 - One story per branch, named `KEY-123-short-slug`. Commit messages start with the key and say why.
 - Never push to `main` directly; everything goes through a reviewed PR.
+- Delivery flow: PR → Netlify Deploy Preview → CI runs Playwright and axe against the preview → merge to `main` → Netlify production deploy, which CI checks serves the merged commit.

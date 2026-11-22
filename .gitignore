@@ -9,6 +9,6 @@ playwright-report/
 .env
 .env*.local
 supabase/.temp/
-.vercel
+.netlify
 *.log
 .DS_Store

@@ -15,6 +15,13 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Netlify deploys: change these if the site name or domain changes. The PR number reaches
+# scripts only through env. The wait stays under the 10-minute job cap so a timeout fails clearly.
+env:
+  PRODUCTION_URL: https://panna-book.netlify.app
+  PREVIEW_URL: https://deploy-preview-${{ github.event.pull_request.number }}--panna-book.netlify.app
+  WAIT_TIMEOUT_MINUTES: 8
+
 jobs:
   typecheck:
     runs-on: ubuntu-latest
@@ -95,6 +102,65 @@ jobs:
       - if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
       - run: npm run test:e2e
+
+  # Waits for Netlify's Deploy Preview of this PR's head commit; fails if it isn't live in time.
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v5.0.0
+        with:
+          node-version-file: .nvmrc
+      - env:
+          DEPLOY_URL: ${{ env.PREVIEW_URL }}
+          EXPECTED_VERSION: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/wait-for-deploy.mjs
+
+  # The Playwright suite, axe checks included, against the live Deploy Preview.
+  e2e-preview:
+    needs: preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v5.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - id: playwright
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+      - id: playwright-cache
+        uses: actions/cache@v4.2.3
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      # Previews use the production canonical URL (netlify.toml), so the tests expect it too.
+      - env:
+          PLAYWRIGHT_BASE_URL: ${{ env.PREVIEW_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ env.PRODUCTION_URL }}
+        run: npm run test:e2e
+
+  # After a merge, waits for production to serve the merged commit and checks / and /api/health.
+  production:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v5.0.0
+        with:
+          node-version-file: .nvmrc
+      - env:
+          DEPLOY_URL: ${{ env.PRODUCTION_URL }}
+          EXPECTED_VERSION: ${{ github.sha }}
+        run: node scripts/wait-for-deploy.mjs
 
   db:
     runs-on: ubuntu-latest
