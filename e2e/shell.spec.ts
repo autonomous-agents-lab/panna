@@ -1,9 +1,12 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { loadConfig } from "../src/config/schema";
 import { healthResponseSchema } from "../src/contracts/health";
 import { en } from "../src/i18n/messages/en";
 import { hi } from "../src/i18n/messages/hi";
+
+import { expect, test } from "./fixtures";
+import { TEST_ROUTES_TAG } from "./target";
 
 const { appName, siteUrl } = loadConfig(process.env);
 
@@ -61,7 +64,8 @@ for (const { browserLocale, t } of LANGUAGES) {
     test.use({ locale: browserLocale });
 
     for (const path of [HOME, MISSING, THROWS]) {
-      test(`on ${path}, the first Tab focuses a visible skip link that moves focus to main`, async ({ page }) => {
+      const details = path === THROWS ? { tag: TEST_ROUTES_TAG } : {};
+      test(`on ${path}, the first Tab focuses a visible skip link that moves focus to main`, details, async ({ page }) => {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         const skipLink = page.getByRole("link", { name: t["shell.skipToContent"] });
@@ -95,7 +99,7 @@ for (const { browserLocale, t } of LANGUAGES) {
       expect((await metaContent(page, 'meta[name="robots"]')).some((content) => content.includes("noindex"))).toBe(true);
     });
 
-    test("a route that throws shows a translated error page with retry and home, and no internals", async ({ page }) => {
+    test("a route that throws shows a translated error page with retry and home, and no internals", { tag: TEST_ROUTES_TAG }, async ({ page }) => {
       await page.goto(THROWS);
       const main = page.getByRole("main");
       await expect(main.getByRole("heading", { level: 1 })).toHaveText(t["error.title"]);

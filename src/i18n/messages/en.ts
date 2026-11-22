@@ -3,6 +3,7 @@
  * Values may use `{name}` placeholders; the brand always comes in as `{appName}`.
  */
 export const en = {
+  "home.comingSoon": "Coming soon",
   "home.tagline": "A digital book for everyone. Write your thoughts in Hindi or English, page by page.",
   "localeSwitch.label": "Language",
   "localeSwitch.endonym": "English",

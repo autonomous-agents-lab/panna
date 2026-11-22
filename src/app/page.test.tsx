@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -17,10 +19,25 @@ vi.mock("@/i18n/server", () => ({
 const { default: HomePage, generateMetadata } = await import("./page");
 
 describe("HomePage", () => {
-  it.each(["en", "hi"] as const)("in %s, shows the app name and the translated tagline, with no main of its own", async (current) => {
-    locale.current = current;
-    const html = renderToStaticMarkup(await HomePage());
-    expect(html).toBe(`<h1>${config.appName}</h1><p>${catalogues[current]["home.tagline"]}</p>`);
+  it.each(["en", "hi"] as const)(
+    "in %s, is a Coming soon page with the app name and the translated one-line description, with no main of its own",
+    async (current) => {
+      locale.current = current;
+      const html = renderToStaticMarkup(await HomePage());
+      const t = catalogues[current];
+      expect(html).toMatch(
+        new RegExp(
+          `^<div class="[^"]*"><h1 class="[^"]*">${config.appName}</h1>` +
+            `<p class="[^"]*">${t["home.comingSoon"]}</p><p class="[^"]*">${t["home.tagline"]}</p></div>$`,
+        ),
+      );
+    },
+  );
+
+  it("needs no database, login or secret: it reads no env, Supabase or server-only config itself", () => {
+    const source = readFileSync(join(import.meta.dirname, "page.tsx"), "utf8");
+    expect(source).not.toMatch(/process\.env|@\/lib\/supabase|getSupabaseConfig|@\/config\/server|next\/headers/);
+    expect(source).toMatch(/^import \{ config \} from "@\/config";$/m);
   });
 
   it("is canonical at the site root", async () => {
@@ -51,6 +68,6 @@ describe("without any Supabase variables set", () => {
     const shell = await RootLayout({ children: page });
 
     expect(shell.props.lang).toBe("en");
-    expect(renderToStaticMarkup(page)).toContain(`<h1>${freshConfig.appName}</h1>`);
+    expect(renderToStaticMarkup(page)).toMatch(new RegExp(`<h1 class="[^"]*">${freshConfig.appName}</h1>`));
   });
 });

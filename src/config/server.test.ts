@@ -13,12 +13,13 @@ describe("loadServerConfig", () => {
     expect(loadServerConfig({})).toEqual({ version: packageJson.version, testRoutes: false });
   });
 
-  it.each([
-    ["APP_VERSION", { APP_VERSION: "abc1234", COMMIT_REF: SHA, GITHUB_SHA: SHA }, "abc1234"],
-    ["COMMIT_REF", { COMMIT_REF: SHA, GITHUB_SHA: "fedcba9" }, SHA],
-    ["GITHUB_SHA", { GITHUB_SHA: "FEDCBA9" }, "FEDCBA9"],
-  ])("uses %s as the version, in that order of precedence", (_name, raw, expected) => {
-    expect(loadServerConfig(raw, "1.0.0").version).toBe(expected);
+  it.each([SHA, "FEDCBA9"])("uses APP_VERSION %s as the version", (sha) => {
+    expect(loadServerConfig({ APP_VERSION: sha }, "1.0.0").version).toBe(sha);
+  });
+
+  it("ignores host variables: the host's SHA reaches the app only as APP_VERSION", () => {
+    expect(loadServerConfig({ COMMIT_REF: SHA, GITHUB_SHA: SHA }, "1.0.0").version).toBe("1.0.0");
+    expect(loadServerConfig({ APP_VERSION: "abc1234", COMMIT_REF: SHA }, "1.0.0").version).toBe("abc1234");
   });
 
   it.each(["", "abc123", "x".repeat(7), `${SHA}0`, "secret-token-value", "abc1234; rm"])(
@@ -28,12 +29,8 @@ describe("loadServerConfig", () => {
     },
   );
 
-  it("skips an invalid value in favour of the next valid one", () => {
-    expect(loadServerConfig({ APP_VERSION: "not a sha", COMMIT_REF: "abc1234" }, "1.0.0").version).toBe("abc1234");
-  });
-
   it("trims whitespace around a SHA", () => {
-    expect(loadServerConfig({ GITHUB_SHA: " abc1234\n" }, "1.0.0").version).toBe("abc1234");
+    expect(loadServerConfig({ APP_VERSION: " abc1234\n" }, "1.0.0").version).toBe("abc1234");
   });
 
   it.each([
@@ -54,15 +51,24 @@ describe("serverConfig", () => {
   });
 
   it("reads the version and test-route flag from process.env", async () => {
-    vi.stubEnv("APP_VERSION", "");
-    vi.stubEnv("COMMIT_REF", "abcdef1");
-    vi.stubEnv("GITHUB_SHA", "");
+    vi.stubEnv("APP_VERSION", "abcdef1");
     vi.stubEnv("ENABLE_TEST_ROUTES", "true");
     vi.resetModules();
 
     const { serverConfig } = await import("./server");
 
     expect(serverConfig).toEqual({ version: "abcdef1", testRoutes: true });
+  });
+
+  it("never reads the host's SHA variables, so the package version applies without APP_VERSION", async () => {
+    vi.stubEnv("APP_VERSION", undefined);
+    vi.stubEnv("COMMIT_REF", SHA);
+    vi.stubEnv("GITHUB_SHA", SHA);
+    vi.resetModules();
+
+    const { serverConfig } = await import("./server");
+
+    expect(serverConfig.version).toBe(packageJson.version);
   });
 
   it("is marked server-only, so importing it from a client component fails the build", () => {

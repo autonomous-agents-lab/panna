@@ -51,10 +51,33 @@ npx playwright install chromium
 | `e2e`       | `npm run test:e2e`, with the Playwright browser cached per Playwright version |
 | `db`        | Starts a fresh local Supabase, `supabase db reset --local` (every migration, then the seed), then `npm run test:db` |
 | `secrets`   | gitleaks over the PR's commits (or the pushed commits on `main`), using `.gitleaks.toml` |
+| `preview`   | Pull requests only: waits for the PR's Netlify Deploy Preview to serve the PR's head commit (see [Deployment](#deployment)) |
+| `e2e-preview` | Pull requests only, after `preview`: `npm run test:e2e` against the Deploy Preview |
+| `production` | Pushes to `main` only: waits for production to serve the merged commit, then checks `/` and `/api/health` answer 200 |
 
 Together `typecheck`, `lint` and `unit` are what `npm test` runs locally. The jobs use no repository secrets and the token is read-only, so pull requests from forks run the same way.
 
 **If `secrets` fails**, its log names the rule, the file, the line and the commit; the value itself is redacted. Treat the secret as leaked: rotate it first, then remove it from the branch history (rewrite the commits that added it) before the PR can merge. Deleting it in a new commit is not enough, because the scan covers every commit in the PR.
+
+## Deployment
+
+The app is hosted on Netlify (site `panna-book`, production at https://panna-book.netlify.app). `netlify.toml` builds it on Node 22 with the Next.js runtime (`@netlify/plugin-nextjs`, pinned in `devDependencies`). App code stays host-agnostic: `netlify.toml` maps Netlify's own variables onto ours (its commit SHA onto `APP_VERSION`, its production URL onto `NEXT_PUBLIC_SITE_URL` unless that is set in Netlify), and `npm test` fails if anything under `src/` imports a host package or reads a host variable.
+
+The flow for every change:
+
+1. **Open a pull request.** Netlify builds a Deploy Preview at `https://deploy-preview-<PR number>--panna-book.netlify.app` and posts its URL on the PR.
+2. **CI tests the preview.** The `preview` job polls the preview's `/api/health` until it reports the PR's head commit, then `e2e-preview` runs the whole Playwright suite, axe checks included, against it with `PLAYWRIGHT_BASE_URL` set to the preview URL. Tests that need the `/test-only/*` routes are tagged `@test-routes` and only run in the local `e2e` job, because those routes are never turned on in a deploy. Netlify injects its review toolbar into previews (never production); on remote runs the specs' shared fixture (`e2e/fixtures.ts`) answers the toolbar's requests with an empty script, so it can't take focus or show up as an external request.
+3. **Merge to `main`.** Netlify deploys to production, and the `production` job waits for https://panna-book.netlify.app to serve the merged commit and checks `/` and `/api/health` answer 200.
+
+Deployed env values (the app name, the Supabase URL and, from Epic 2, the anon key) are set only in Netlify; `.env.example` notes which. The Supabase service-role key may only ever go in Netlify's server-side environment. CI needs no Netlify token, because preview URLs are predictable and `/api/health` reports the deployed commit. The URLs and the wait (`WAIT_TIMEOUT_MINUTES`, 8 minutes) are set once in the workflow's `env`.
+
+To run the end-to-end tests against any deploy yourself: `PLAYWRIGHT_BASE_URL=https://deploy-preview-12--panna-book.netlify.app NEXT_PUBLIC_SITE_URL=https://panna-book.netlify.app npm run test:e2e`.
+
+**If `preview` or `production` times out**, the job fails with a `::error::` annotation naming the URL, the commit it waited for and the last thing it saw:
+
+- `HTTP 404`: the deploy doesn't exist yet. Check the Netlify deploy log; the build may have failed, or (on the free plan, which builds one site at a time) be queued behind another build. Re-run the job once it is published. Netlify may not build previews for PRs from forks.
+- `version <other sha>`: an older (or newer) commit is live. The build for this commit failed or is still running. On `main`, a newer merge published first also causes this; that run's own `production` job is the one to check.
+- `network error`: the site didn't answer at all; check Netlify's status and the site settings.
 
 ## Configuration
 
@@ -64,7 +87,7 @@ The Supabase URL and anon key are validated only when a Supabase client is creat
 
 Server-only values live in `src/config/server.ts`, which client code can't import:
 
-- `APP_VERSION`: the commit SHA `/api/health` reports. Leave it unset on Netlify, which provides `COMMIT_REF`; GitHub Actions provides `GITHUB_SHA`. Anything that isn't a 7 to 40 character hex SHA is ignored in favour of the `package.json` version.
+- `APP_VERSION`: the commit SHA `/api/health` reports. Don't set it in Netlify: `netlify.toml` maps Netlify's commit onto it at build time, and `next.config.ts` bakes it into the server build. Anything that isn't a 7 to 40 character hex SHA is ignored in favour of the `package.json` version, which is also what local and CI builds report.
 - `ENABLE_TEST_ROUTES`: `true` turns on `/test-only/*` routes (a page that throws, for the error-page tests). Playwright sets it for the server it starts. It must never be set in Netlify, in production or in deploy previews.
 
 `GET /api/health` returns `{ status: "ok", version, time }` with `Cache-Control: no-store`. It doesn't check Supabase.

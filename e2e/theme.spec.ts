@@ -1,6 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { theme, toCssRgb } from "../src/theme";
+
+import { expect, test } from "./fixtures";
 
 const WHITE = "rgb(255, 255, 255)";
 
