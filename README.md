@@ -90,6 +90,7 @@ Server-only values live in `src/config/server.ts`, which client code can't impor
 
 - `APP_VERSION`: the commit SHA `/api/health` reports. Don't set it in Netlify: `netlify.toml` maps Netlify's commit onto it at build time, and `next.config.ts` bakes it into the server build. Anything that isn't a 7 to 40 character hex SHA is ignored in favour of the `package.json` version, which is also what local and CI builds report.
 - `ENABLE_TEST_ROUTES`: `true` turns on `/test-only/*` routes (a page that throws, for the error-page tests). Playwright sets it for the server it starts. It must never be set in Netlify, in production or in deploy previews.
+- `WRITING_DATA_SOURCE`: where the writing epic keeps chapters and pages. The only value for now is `stand-in` (the default): an in-memory store and a fixed stand-in writer, so the writing UI runs without auth or tables, and no Supabase call is made. Data is lost on restart. Any other value stops the server with an error naming the variable. The story that adds the Supabase data source makes that the production default.
 
 `GET /api/health` returns `{ status: "ok", version, time }` with `Cache-Control: no-store`. It doesn't check Supabase.
 
