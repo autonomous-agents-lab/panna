@@ -3,34 +3,63 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { isHostTooling, PREVIEW_TOOLBAR_DOMAINS, resolveTarget, TEST_ROUTES_TAG } from "../../e2e/target";
+import {
+  IN_MEMORY_STORE_TAG,
+  isHostTooling,
+  LOCAL_SUPABASE,
+  PREVIEW_TOOLBAR_DOMAINS,
+  resolveTarget,
+  TEST_ROUTES_TAG,
+} from "../../e2e/target";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
 const PREVIEW = "https://deploy-preview-7--panna-book.netlify.app";
 
 describe("resolveTarget (AC-3)", () => {
-  it("points at a deployed site when PLAYWRIGHT_BASE_URL is set, starting no server and leaving out test-route tests", () => {
+  it("points at a deployed site when PLAYWRIGHT_BASE_URL is set, starting no server and leaving out test-route and in-memory store tests", () => {
     const target = resolveTarget({ PLAYWRIGHT_BASE_URL: `${PREVIEW}/`, E2E_PORT: "4000" });
 
     expect(target).toEqual({
       baseURL: PREVIEW,
-      grepInvert: new RegExp(TEST_ROUTES_TAG),
+      grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${IN_MEMORY_STORE_TAG}`),
       hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
     });
     expect(target.grepInvert?.test("@test-routes")).toBe(true);
+    expect(target.grepInvert?.test("the writing dashboard flow @in-memory-store")).toBe(true);
+    expect(target.grepInvert?.test("/write is noindex")).toBe(false);
   });
 
-  it("otherwise builds and starts the app itself, with test routes on", () => {
+  it("otherwise builds and starts the app itself, with test routes and stand-in writing on", () => {
     expect(resolveTarget({ PLAYWRIGHT_BASE_URL: "" })).toEqual({
       baseURL: "http://localhost:3100",
       hostToolingDomains: [],
       webServer: {
         command: "npm run build && npm run start -- --port 3100",
         url: "http://localhost:3100",
-        env: { ENABLE_TEST_ROUTES: "true" },
+        env: {
+          ENABLE_TEST_ROUTES: "true",
+          ENABLE_STAND_IN_WRITING: "true",
+          NEXT_PUBLIC_SUPABASE_URL: LOCAL_SUPABASE.url,
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: LOCAL_SUPABASE.anonKey,
+        },
       },
     });
     expect(resolveTarget({ E2E_PORT: "4000" }).webServer?.url).toBe("http://localhost:4000");
+  });
+
+  it("keeps Supabase values from the environment (e.g. .env.local), filling in only missing ones", () => {
+    const env = resolveTarget({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:55555", NEXT_PUBLIC_SUPABASE_ANON_KEY: "" })
+      .webServer?.env;
+    expect(env).toMatchObject({
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:55555",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: LOCAL_SUPABASE.anonKey,
+    });
+  });
+
+  it("falls back to exactly the local values .env.example documents", () => {
+    const example = readFileSync(join(repoRoot, ".env.example"), "utf8");
+    expect(example).toContain(`\nNEXT_PUBLIC_SUPABASE_URL=${LOCAL_SUPABASE.url}\n`);
+    expect(example).toContain(`\nNEXT_PUBLIC_SUPABASE_ANON_KEY=${LOCAL_SUPABASE.anonKey}\n`);
   });
 
   it.each(["deploy-preview-7", "http://panna-book.netlify.app", "ftp://example.com"])(
@@ -105,10 +134,17 @@ describe("tests run against a Deploy Preview (AC-3, AC-9)", () => {
     expect(remote.some((line) => line.includes("/api/health reports ok"))).toBe(true);
   });
 
-  it("leaves out only the tests that need /test-only/* routes, which still run locally", () => {
+  it("leaves out only the tests that need /test-only/* routes or the in-memory store, which still run locally", () => {
     const left = local.filter((line) => !remote.includes(line));
     expect(left.length).toBeGreaterThan(0);
-    for (const line of left) expect(line).toMatch(/error page|\/test-only\//);
-    expect(remote.some((line) => /error page|\/test-only\//.test(line))).toBe(false);
+    for (const line of left) expect(line).toMatch(/error page|\/test-only\/|writing dashboard flow/);
+    expect(remote.some((line) => /error page|\/test-only\/|writing dashboard flow/.test(line))).toBe(false);
+  });
+
+  it("still checks /write for noindex and axe violations against a Deploy Preview", () => {
+    expect(remote.some((line) => line.includes("/write is noindex"))).toBe(true);
+    for (const locale of ["en-US", "hi-IN"]) {
+      expect(remote.some((line) => line.includes(`in ${locale} › the writing dashboard page has no axe violations`))).toBe(true);
+    }
   });
 });

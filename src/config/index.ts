@@ -3,6 +3,7 @@ import { loadSupabaseConfig, type SupabaseConfig } from "./supabase";
 
 export type { Config } from "./schema";
 export type { SupabaseConfig } from "./supabase";
+export * from "./auth";
 export * from "./books";
 export * from "./content";
 export * from "./usernames";

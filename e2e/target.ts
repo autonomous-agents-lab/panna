@@ -2,6 +2,18 @@
 export const TEST_ROUTES_TAG = "@test-routes";
 
 /**
+ * Tests that write to the stand-in in-memory store and read it back. A deploy's function
+ * instances don't share that memory, so remote runs skip them until the Supabase data source lands.
+ */
+export const IN_MEMORY_STORE_TAG = "@in-memory-store";
+
+/** The local Supabase values .env.example documents (the anon key is its placeholder). */
+export const LOCAL_SUPABASE = {
+  url: "http://127.0.0.1:54321",
+  anonKey: "replace-with-anon-key-from-supabase-status",
+};
+
+/**
  * Domains the Deploy Preview review toolbar loads from (its loader, its app and its analytics).
  * Netlify injects the toolbar into preview HTML only, never production. It takes focus and makes
  * third-party requests, so remote runs stub it out.
@@ -44,7 +56,7 @@ export function resolveTarget(env: Record<string, string | undefined>): E2eTarge
     }
     return {
       baseURL: url.origin,
-      grepInvert: new RegExp(TEST_ROUTES_TAG),
+      grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${IN_MEMORY_STORE_TAG}`),
       hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
     };
   }
@@ -59,8 +71,17 @@ export function resolveTarget(env: Record<string, string | undefined>): E2eTarge
       // would hide what users really get from the error page (keyboard and axe checks).
       command: `npm run build && npm run start -- --port ${port}`,
       url: baseURL,
-      // Turns on /test-only/* (a route that throws, for the error page tests). Never set in Netlify.
-      env: { ENABLE_TEST_ROUTES: "true" },
+      env: {
+        // Turns on /test-only/* (a route that throws, for the error page tests). Never set in Netlify.
+        ENABLE_TEST_ROUTES: "true",
+        // The production build serves /write on the stand-in store only when told to.
+        ENABLE_STAND_IN_WRITING: "true",
+        // The writing services check page image srcs against the Supabase URL, so /write needs the
+        // Supabase config even on the stand-in. Without .env.local, use .env.example's local values;
+        // nothing here connects to Supabase.
+        NEXT_PUBLIC_SUPABASE_URL: env.NEXT_PUBLIC_SUPABASE_URL || LOCAL_SUPABASE.url,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: env.NEXT_PUBLIC_SUPABASE_ANON_KEY || LOCAL_SUPABASE.anonKey,
+      },
     },
   };
 }

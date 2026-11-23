@@ -17,6 +17,10 @@ export const theme = {
     onAccent: "#FBF5EC",
     focus: "#1F5FA8",
     error: "#A3261B",
+    // Page status badge backgrounds, under ink text. The badge's text label carries the meaning.
+    statusDraft: "#F6E3B4",
+    statusPublished: "#CFE5CF",
+    statusArchived: "#DCD6CF",
   },
   space: {
     0: "0",
