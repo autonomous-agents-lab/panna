@@ -2,8 +2,9 @@
 export const TEST_ROUTES_TAG = "@test-routes";
 
 /**
- * Tests that sign in through local Supabase's mail inbox (Mailpit). A deploy uses the hosted
- * project, whose emails can't be read, so remote runs skip them.
+ * Tests that need Supabase: the sign-in form, Google's authorize step, the code exchange and the
+ * mail inbox (Mailpit). The database is local only, so deploys have no Supabase values on purpose
+ * and /login there says sign-in is unavailable; remote runs skip these tests.
  */
 export const LOCAL_SUPABASE_TAG = "@local-supabase";
 

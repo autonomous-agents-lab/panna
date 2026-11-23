@@ -81,7 +81,8 @@ jobs:
       # next build, then the check that client bundles carry only the public Supabase variables.
       - run: npm run test:build
 
-  # Runs against a local Supabase, so the magic-link tests (@local-supabase) can read Mailpit.
+  # Runs against a local Supabase, so the tests that need it (@local-supabase) run here, magic links
+  # read from Mailpit included. e2e-preview skips them: deploys have no Supabase on purpose.
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10

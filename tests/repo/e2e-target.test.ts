@@ -113,23 +113,37 @@ describe("tests run against a Deploy Preview (AC-3, AC-9)", () => {
     expect(remote.some((line) => line.includes("/api/health reports ok"))).toBe(true);
   });
 
-  it("leaves out only the tests that need /test-only/* routes or local Supabase, which still run locally", () => {
+  const localOnly = /error page|\/test-only\/|with local Supabase|sign-in in |sign-in with the keyboard|Continue with Google/;
+  const needsSupabase = [
+    "sign-in in en-US › /login is a translated, noindex page",
+    "sign-in in en-US › an invalid email shows an inline, labelled error",
+    "sign-in in en-US › a failed or expired link lands on /login",
+    "sign-in in hi-IN › /login is a translated, noindex page",
+    "sign-in in hi-IN › an invalid email shows an inline, labelled error",
+    "sign-in in hi-IN › a failed or expired link lands on /login",
+    "sign-in with the keyboard › every control on /login",
+    "Continue with Google goes to Supabase's Google flow",
+    "with local Supabase › a magic link signs in",
+  ];
+
+  it("leaves out only the tests that need /test-only/* routes or Supabase, which still run locally", () => {
     const left = local.filter((line) => !remote.includes(line));
-    const localOnly = /error page|\/test-only\/|with local Supabase/;
     expect(left.length).toBeGreaterThan(0);
     for (const line of left) expect(line).toMatch(localOnly);
-    expect(left.some((line) => line.includes("with local Supabase › a magic link signs in"))).toBe(true);
     expect(remote.some((line) => localOnly.test(line))).toBe(false);
   });
 
-  it("still runs the sign-in checks that need no local Supabase against the preview (BOOK-17)", () => {
+  it("runs every sign-in test locally but not against the preview, which has no Supabase on purpose (BOOK-17)", () => {
+    for (const name of needsSupabase) {
+      expect(local.some((line) => line.includes(name)), `local: ${name}`).toBe(true);
+      expect(remote.some((line) => line.includes(name)), `remote: ${name}`).toBe(false);
+    }
+  });
+
+  it("still checks the protected-page redirects against the preview, since they need no Supabase (BOOK-17)", () => {
     for (const name of [
-      "sign-in in en-US › /login is a translated, noindex page",
-      "sign-in in hi-IN › an invalid email shows an inline, labelled error",
       "protected pages › a signed-out visit to /settings goes to /login",
       "protected pages › a signed-out visit to /onboarding goes to /login",
-      "sign-in with the keyboard › every control on /login",
-      "Continue with Google goes to Supabase's Google flow",
     ]) {
       expect(remote.some((line) => line.includes(name)), name).toBe(true);
     }

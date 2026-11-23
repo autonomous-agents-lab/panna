@@ -19,8 +19,8 @@ const LANGUAGES = [
 
 const SIGN_IN_UNAVAILABLE =
   "/login says sign-in is unavailable: the app was built without NEXT_PUBLIC_SUPABASE_URL and " +
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY. For a deploy, set both in Netlify for every deploy context (Deploy Previews " +
-  'too) and redeploy; locally, see "Local Supabase" in the README.';
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY. Tests tagged ${LOCAL_SUPABASE_TAG} need the local stack; see "Local Supabase" ` +
+  "in the README.";
 
 /** Opens `url`, which shows the sign-in form, and fails at once with the cause if the deploy can't offer sign-in. */
 async function gotoSignIn(page: Page, url: string, t: Record<"auth.login.unavailable", string> = en) {
@@ -41,7 +41,7 @@ async function expectNoindex(page: Page) {
 }
 
 for (const { browserLocale, lang, t } of LANGUAGES) {
-  test.describe(`sign-in in ${browserLocale}`, () => {
+  test.describe(`sign-in in ${browserLocale}`, { tag: LOCAL_SUPABASE_TAG }, () => {
     test.use({ locale: browserLocale });
 
     test("/login is a translated, noindex page with a labelled email field and no axe violations", async ({ page }) => {
@@ -82,7 +82,7 @@ for (const { browserLocale, lang, t } of LANGUAGES) {
   });
 }
 
-test.describe("sign-in with the keyboard", () => {
+test.describe("sign-in with the keyboard", { tag: LOCAL_SUPABASE_TAG }, () => {
   test.use({ locale: "en-US" });
 
   test("every control on /login is reached in order, with a visible focus ring", async ({ page }) => {
@@ -107,6 +107,7 @@ test.describe("sign-in with the keyboard", () => {
   });
 });
 
+// Untagged: signed-out visitors are redirected with or without Supabase, so deploys run these too.
 test.describe("protected pages", () => {
   for (const path of ["/settings", "/onboarding"]) {
     test(`a signed-out visit to ${path} goes to /login with next`, async ({ page }) => {
@@ -117,7 +118,7 @@ test.describe("protected pages", () => {
   }
 });
 
-test("Continue with Google goes to Supabase's Google flow with the callback built from config", async ({ page }) => {
+test("Continue with Google goes to Supabase's Google flow with the callback built from config", { tag: LOCAL_SUPABASE_TAG }, async ({ page }) => {
   // Google can't be completed without real credentials, so stop at Supabase's authorize step.
   const isAuthorize = (url: URL) => url.pathname.endsWith("/auth/v1/authorize");
   await page.route(isAuthorize, (route) => route.fulfill({ status: 200, contentType: "text/plain", body: "" }));
