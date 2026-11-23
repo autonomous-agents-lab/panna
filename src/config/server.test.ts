@@ -10,8 +10,25 @@ const SHA = "0123456789abcdef0123456789abcdef01234567";
 
 describe("loadServerConfig", () => {
   it("falls back to the package version and keeps test routes off when nothing is set", () => {
-    expect(loadServerConfig({})).toEqual({ version: packageJson.version, testRoutes: false });
+    expect(loadServerConfig({})).toEqual({
+      version: packageJson.version,
+      testRoutes: false,
+      writingDataSource: "stand-in",
+    });
   });
+
+  it("uses the stand-in writing data source when WRITING_DATA_SOURCE says so", () => {
+    expect(loadServerConfig({ WRITING_DATA_SOURCE: "stand-in" }).writingDataSource).toBe("stand-in");
+  });
+
+  it.each(["", "supabase", "STAND-IN", "secret-token-value"])(
+    "throws an error naming WRITING_DATA_SOURCE, without echoing it, for %j",
+    (value) => {
+      expect(() => loadServerConfig({ WRITING_DATA_SOURCE: value })).toThrow(
+        /^WRITING_DATA_SOURCE must be one of: stand-in$/,
+      );
+    },
+  );
 
   it.each([SHA, "FEDCBA9"])("uses APP_VERSION %s as the version", (sha) => {
     expect(loadServerConfig({ APP_VERSION: sha }, "1.0.0").version).toBe(sha);
@@ -53,11 +70,12 @@ describe("serverConfig", () => {
   it("reads the version and test-route flag from process.env", async () => {
     vi.stubEnv("APP_VERSION", "abcdef1");
     vi.stubEnv("ENABLE_TEST_ROUTES", "true");
+    vi.stubEnv("WRITING_DATA_SOURCE", "stand-in");
     vi.resetModules();
 
     const { serverConfig } = await import("./server");
 
-    expect(serverConfig).toEqual({ version: "abcdef1", testRoutes: true });
+    expect(serverConfig).toEqual({ version: "abcdef1", testRoutes: true, writingDataSource: "stand-in" });
   });
 
   it("never reads the host's SHA variables, so the package version applies without APP_VERSION", async () => {

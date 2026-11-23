@@ -2,7 +2,7 @@
 
 A digital book for everyone: write your thoughts in Hindi or English, page by page, and let readers turn your pages like a real notebook.
 
-See `docs/product-brief.md` for the product and `CLAUDE.md` for how it's built. The app name is configurable (`NEXT_PUBLIC_APP_NAME`).
+See `docs/product-brief.md` for the product, `docs/content-format.md` for the page body format, and `CLAUDE.md` for how it's built. The app name is configurable (`NEXT_PUBLIC_APP_NAME`).
 
 ## Quick start
 
@@ -31,6 +31,7 @@ npx playwright install chromium
 | ------------------ | -------------------------------------------------------------------- |
 | `npm run dev`      | Start the app locally at http://localhost:3000                       |
 | `npm test`         | Typecheck (`tsc --noEmit`), lint (ESLint), then unit tests (Vitest)  |
+| `npm run test:coverage` | Unit tests with coverage; fails below the thresholds in `vitest.config.ts` (100% for the page body sanitiser and renderer) |
 | `npm run test:e2e` | Playwright end-to-end tests, including axe accessibility checks; builds and starts the production app itself on port 3100 (`E2E_PORT` to change) |
 | `npm run build`    | Production build                                                     |
 | `npm run start`    | Serve the production build                                           |
@@ -47,7 +48,7 @@ npx playwright install chromium
 | ----------- | ------------ |
 | `typecheck` | `npx next typegen`, then `npm run typecheck` |
 | `lint`      | `npm run lint` |
-| `unit`      | `npm run test:unit` |
+| `unit`      | `npm run test:coverage`: the unit tests with coverage, failing below the thresholds in `vitest.config.ts` |
 | `build`     | `npm run test:build` (production build plus the client-bundle check) |
 | `e2e`       | Starts a local Supabase (Postgres, Auth, API and Mailpit), points the app at it, then `npm run test:e2e`, with the Playwright browser cached per Playwright version |
 | `db`        | Starts a fresh local Supabase, `supabase db reset --local` (every migration, then the seed), then `npm run test:db` |
@@ -90,6 +91,7 @@ Server-only values live in `src/config/server.ts`, which client code can't impor
 
 - `APP_VERSION`: the commit SHA `/api/health` reports. Don't set it in Netlify: `netlify.toml` maps Netlify's commit onto it at build time, and `next.config.ts` bakes it into the server build. Anything that isn't a 7 to 40 character hex SHA is ignored in favour of the `package.json` version, which is also what local and CI builds report.
 - `ENABLE_TEST_ROUTES`: `true` turns on `/test-only/*` routes (a page that throws, for the error-page tests). Playwright sets it for the server it starts. It must never be set in Netlify, in production or in deploy previews.
+- `WRITING_DATA_SOURCE`: where the writing epic keeps chapters and pages. The only value for now is `stand-in` (the default): an in-memory store and a fixed stand-in writer, so the writing UI runs without auth or tables, and no Supabase call is made. Data is lost on restart. Any other value stops the server with an error naming the variable. The story that adds the Supabase data source makes that the production default.
 
 `GET /api/health` returns `{ status: "ok", version, time }` with `Cache-Control: no-store`. It doesn't check Supabase.
 
@@ -125,7 +127,21 @@ npx supabase stop               # stop the stack when you are done
 Rules:
 
 - An applied migration is never edited. To change something, add a new migration.
-- Migrations only add or change; a migration never drops user data. User content is soft-deleted with `archived_at`/`deleted_at`.
+- Migrations only add or change; a migration never drops user data. User content is soft-deleted with `archived_at`/`deleted_at`. `npm test` fails if a migration drops a table, schema or column, truncates, or deletes rows.
+
+### Profiles, books and usernames
+
+- `profiles`: one per auth user (`id` is the auth user id). Public profile data only, no email or auth data.
+- `books`: exactly one per profile (`owner_id` is unique).
+- `username_history`: usernames a profile gave up, held until `reusable_after`. Clients can't read it. They call `username_held_until(name)`, which returns only when the name becomes free.
+
+Clients create their profile and book together by calling the `create_profile_with_book(p_username, p_display_name, p_preferred_language)` RPC. It trims and lowercases the username and rejects reserved names (`username_reserved`) and held names (`username_held`). A name already in use, whatever its case, fails on `profiles_username_lower_key`. `usernameErrorFromDb` in `src/lib/username` maps these errors to the codes that `validateUsername` uses, so the UI shows one set of Hindi and English messages.
+
+Anyone can read profiles and books, except those whose owner is deactivated (`deactivated_at`); owners still see their own. Signed-in users can update only their own editable columns. Changing an id, `owner_id`, the username or `deactivated_at`, inserting, or deleting raises `42501`.
+
+Cover styles, fonts, content languages, username limits, the reserved usernames and text length limits are defined in `src/config` (`books.ts`, `usernames.ts`). They are mirrored in the database as check constraints, column defaults and `is_reserved_username`. To change one, add a migration and change the config in the same PR. `src/contracts/contracts.test.ts` fails if the two disagree. The types and zod schemas in `src/contracts` (`Profile`, `Book`, `CoverStyle`, `FontId`, `Language`) are built from the same config.
+
+**Deleting a user fails while they have a profile.** `profiles.id` references `auth.users` without `on delete cascade`, because user content is never hard-deleted. Removing a user from the Supabase dashboard therefore fails on the foreign key. In the product, removing an account means deactivating it.
 
 ## Auth locally
 

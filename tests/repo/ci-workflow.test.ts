@@ -54,7 +54,8 @@ const stepUsing = (name: string, action: string) => {
 const NODE_CHECKS = {
   typecheck: "npm run typecheck",
   lint: "npm run lint",
-  unit: "npm run test:unit",
+  // With coverage, so the thresholds in vitest.config.ts (100% for the page body sanitiser and renderer) fail CI.
+  unit: "npm run test:coverage",
   build: "npm run test:build",
   e2e: "npm run test:e2e",
   "e2e-preview": "npm run test:e2e",

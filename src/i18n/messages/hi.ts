@@ -37,4 +37,11 @@ export const hi: Catalogue = {
   "auth.signedInAs": "{email} के रूप में साइन इन",
   "settings.title": "सेटिंग्स",
   "onboarding.title": "स्वागत है",
+  "username.error.too_short": "यूज़रनेम में कम से कम {min} अक्षर होने चाहिए।",
+  "username.error.too_long": "यूज़रनेम में ज़्यादा से ज़्यादा {max} अक्षर हो सकते हैं।",
+  "username.error.invalid_characters": "सिर्फ़ अंग्रेज़ी के अक्षर a से z, अंक और अंडरस्कोर (_) इस्तेमाल करें।",
+  "username.error.must_start_with_letter": "यूज़रनेम किसी अक्षर से शुरू होना चाहिए।",
+  "username.error.reserved": "यह यूज़रनेम आरक्षित है। कृपया कोई दूसरा चुनें।",
+  "username.error.held": "यह यूज़रनेम हाल ही में इस्तेमाल हुआ था और अभी उपलब्ध नहीं है।",
+  "username.error.taken": "यह यूज़रनेम पहले से किसी ने ले लिया है।",
 };
