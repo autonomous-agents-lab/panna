@@ -39,8 +39,10 @@ export default defineConfig({
         "src/lib/supabase/database.types.ts",
       ],
       // The page body sanitiser and renderer guard every page against unsafe HTML. The writing
-      // contract and repositories keep each writer's chapters and pages apart.
+      // contract and repositories keep each writer's chapters and pages apart. The sign-in
+      // redirect sanitiser is the only thing standing between `next` and an open redirect.
       thresholds: {
+        "src/lib/auth/redirect.ts": { branches: 100, functions: 100, lines: 100, statements: 100 },
         "src/contracts/page-body/**": { branches: 100, functions: 100, lines: 100, statements: 100 },
         "src/contracts/{writing,current-writer}.ts": { branches: 100, functions: 100, lines: 100, statements: 100 },
         "src/lib/writing/**": { branches: 100, functions: 100, lines: 100, statements: 100 },

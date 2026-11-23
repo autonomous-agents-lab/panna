@@ -18,12 +18,18 @@ export function templatePath(template) {
   return `supabase/templates/${template}.html`;
 }
 
-/** The app name as src/config resolves it: the default when unset, trimmed, never blank. */
+/**
+ * The app name as src/config resolves it: the default when unset, trimmed, never blank. Supabase
+ * parses the templates as Go templates, so a name containing their delimiters is refused.
+ */
 export function resolveAppName(env) {
   const value = env.NEXT_PUBLIC_APP_NAME;
   if (value === undefined) return DEFAULT_APP_NAME;
   const name = value.trim();
   if (name === "") throw new Error("NEXT_PUBLIC_APP_NAME must not be blank.");
+  if (name.includes("{{") || name.includes("}}")) {
+    throw new Error("NEXT_PUBLIC_APP_NAME must not contain {{ or }}.");
+  }
   return name;
 }
 

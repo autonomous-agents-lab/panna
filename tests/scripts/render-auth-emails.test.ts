@@ -31,6 +31,12 @@ describe("resolveAppName (AC-7)", () => {
     expect(resolveAppName({ NEXT_PUBLIC_APP_NAME: "  Kitaab " })).toBe("Kitaab");
     expect(() => resolveAppName({ NEXT_PUBLIC_APP_NAME: " " })).toThrow("NEXT_PUBLIC_APP_NAME must not be blank.");
   });
+
+  it("refuses a name containing Go template delimiters, which Supabase would parse", () => {
+    for (const name of ["{{ .Email }}", "Kitaab {{", "Kitaab }}"]) {
+      expect(() => resolveAppName({ NEXT_PUBLIC_APP_NAME: name }), name).toThrow("must not contain {{ or }}");
+    }
+  });
 });
 
 describe("updateConfigSubjects (AC-7)", () => {
