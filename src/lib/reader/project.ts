@@ -28,9 +28,12 @@ export type BookStore = z.infer<typeof bookStoreSchema>;
 
 const byPosition = (a: { position: number }, b: { position: number }) => a.position - b.position;
 
-/** Readers see a page only when it is published, has a publish date and isn't archived. */
-export function isPublished(page: Page): boolean {
-  return page.status === "published" && page.published_at !== null && page.archived_at === null;
+/**
+ * Readers see a chapter or page only when it is published, has a publish date and isn't
+ * archived; a page also needs its chapter to be visible (as the pages RLS policy requires).
+ */
+export function isPublished(row: Chapter | Page): boolean {
+  return row.status === "published" && row.published_at !== null && row.archived_at === null;
 }
 
 /** The active writer with this username and their book. A deactivated writer counts as missing. */
@@ -40,8 +43,8 @@ function findWriterBook(store: BookStore, username: string): { profile: Profile;
   return profile && book ? { profile, book } : null;
 }
 
-function liveChapters(store: BookStore, bookId: string): Chapter[] {
-  return store.chapters.filter((row) => row.book_id === bookId && row.archived_at === null).sort(byPosition);
+function publishedChapters(store: BookStore, bookId: string): Chapter[] {
+  return store.chapters.filter((row) => row.book_id === bookId && isPublished(row)).sort(byPosition);
 }
 
 function publishedPages(store: BookStore, chapterId: string): Page[] {
@@ -58,15 +61,15 @@ function toBookInfo({ id, title, subtitle, cover_style, font, default_language }
 }
 
 // published_at is still nullable here; the reader schema checks it is set.
-function toPage({ id, title, language, content, published_at }: Page) {
-  return { id, title, language, content, published_at };
+function toPage({ id, language, body, published_at }: Page) {
+  return { id, language, body, published_at };
 }
 
 /** The writer's book with only published pages, chapters and pages in order; empty chapters are left out. */
 export function toReaderBook(store: BookStore, username: string): ReaderBook | null {
   const found = findWriterBook(store, username);
   if (!found) return null;
-  const chapters = liveChapters(store, found.book.id)
+  const chapters = publishedChapters(store, found.book.id)
     .map(({ id, title }) => ({ id, title, pages: publishedPages(store, id).map(toPage) }))
     .filter((chapter) => chapter.pages.length > 0);
   return readerBookSchema.parse({ writer: toWriter(found.profile), book: toBookInfo(found.book), chapters });
@@ -77,8 +80,8 @@ export function toReaderPage(store: BookStore, username: string, pageId: string)
   const found = findWriterBook(store, username);
   if (!found) return null;
   const page = store.pages.find((row) => row.id === pageId && isPublished(row));
-  // A page id from another writer's book, or from an archived chapter, matches no live chapter here.
-  const chapter = page && liveChapters(store, found.book.id).find((row) => row.id === page.chapter_id);
+  // A page id from another writer's book, or from a draft or archived chapter, matches no chapter here.
+  const chapter = page && publishedChapters(store, found.book.id).find((row) => row.id === page.chapter_id);
   if (!page || !chapter) return null;
   return readerPageViewSchema.parse({
     writer: toWriter(found.profile),

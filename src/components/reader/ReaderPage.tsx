@@ -19,8 +19,7 @@ function formatDate(timestamp: string, locale: Locale): string {
 export function ReaderPage({ page, locale, t }: ReaderPageProps) {
   return (
     <article lang={page.language} className={styles.page}>
-      {page.title && <h3 className={styles.title}>{page.title}</h3>}
-      <RichText doc={page.content} />
+      <RichText body={page.body} />
       <footer lang={locale} className={styles.meta}>
         <time dateTime={page.published_at}>
           {t("reader.publishedOn", { date: formatDate(page.published_at, locale) })}

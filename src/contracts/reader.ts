@@ -23,9 +23,9 @@ export const readerBookInfoSchema = bookSchema.pick({
   default_language: true,
 });
 
-/** A published page. `content` is the whitelisted rich-text document. */
+/** A published page. `body` is the sanitised page body (docs/content-format.md). */
 export const readerPageSchema = pageSchema
-  .pick({ id: true, title: true, language: true, content: true })
+  .pick({ id: true, language: true, body: true })
   .extend({ published_at: timestampSchema });
 
 export const readerChapterSummarySchema = chapterSchema.pick({ id: true, title: true });
@@ -60,6 +60,7 @@ export type ReaderPageView = z.infer<typeof readerPageViewSchema>;
  * Where the reader gets books from. Routes depend only on this, so the data source (in-memory
  * today, Supabase later) can change without touching them. Both return null when nothing
  * matches: no such writer, a deactivated writer, or a page that isn't theirs or isn't published.
+ * Page bodies must already be sanitised with sanitisePageBody.
  */
 export interface BookSource {
   getPublishedBook(username: string): Promise<ReaderBook | null>;

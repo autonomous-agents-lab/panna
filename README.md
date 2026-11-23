@@ -2,7 +2,7 @@
 
 A digital book for everyone: write your thoughts in Hindi or English, page by page, and let readers turn your pages like a real notebook.
 
-See `docs/product-brief.md` for the product and `CLAUDE.md` for how it's built. The app name is configurable (`NEXT_PUBLIC_APP_NAME`).
+See `docs/product-brief.md` for the product, `docs/content-format.md` for the page body format, and `CLAUDE.md` for how it's built. The app name is configurable (`NEXT_PUBLIC_APP_NAME`).
 
 ## Quick start
 
@@ -31,6 +31,7 @@ npx playwright install chromium
 | ------------------ | -------------------------------------------------------------------- |
 | `npm run dev`      | Start the app locally at http://localhost:3000                       |
 | `npm test`         | Typecheck (`tsc --noEmit`), lint (ESLint), then unit tests (Vitest)  |
+| `npm run test:coverage` | Unit tests with coverage; fails below the thresholds in `vitest.config.ts` (100% for the page body sanitiser and renderer) |
 | `npm run test:e2e` | Playwright end-to-end tests, including axe accessibility checks; builds and starts the production app itself on port 3100 (`E2E_PORT` to change) |
 | `npm run build`    | Production build                                                     |
 | `npm run start`    | Serve the production build                                           |
@@ -46,7 +47,7 @@ npx playwright install chromium
 | ----------- | ------------ |
 | `typecheck` | `npx next typegen`, then `npm run typecheck` |
 | `lint`      | `npm run lint` |
-| `unit`      | `npm run test:unit` |
+| `unit`      | `npm run test:coverage`: the unit tests with coverage, failing below the thresholds in `vitest.config.ts` |
 | `build`     | `npm run test:build` (production build plus the client-bundle check) |
 | `e2e`       | `npm run test:e2e`, with the Playwright browser cached per Playwright version |
 | `db`        | Starts a fresh local Supabase, `supabase db reset --local` (every migration, then the seed), then `npm run test:db` |

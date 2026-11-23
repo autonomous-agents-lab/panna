@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { richTextPlainText, type Page } from "@/contracts";
+import type { Chapter, Page } from "@/contracts";
 
+import { pageBodyPlainText } from "./__fixtures__/page-text";
 import { HIDDEN_MARKERS, SAMPLE_IDS, SAMPLE_USERNAMES, sampleBookStore } from "./fixtures";
 import { isPublished, toReaderBook, toReaderPage, type BookStore } from "./project";
 
@@ -26,6 +27,15 @@ describe("isPublished", () => {
     ["an archived page", { archived_at: "2026-11-12T09:00:00+00:00" }, false],
   ])("%s → %s", (_what, change, expected) => {
     expect(isPublished({ ...published, ...change })).toBe(expected);
+  });
+
+  it.each<[string, Partial<Chapter>, boolean]>([
+    ["a published, dated, live chapter", {}, true],
+    ["a draft chapter", { status: "draft", published_at: null }, false],
+    ["an archived chapter", { archived_at: "2026-11-12T09:00:00+00:00" }, false],
+  ])("%s → %s", (_what, change, expected) => {
+    const chapter = store.chapters.find((row) => row.id === ids.drafts.chapters.live)!;
+    expect(isPublished({ ...chapter, ...change })).toBe(expected);
   });
 });
 
@@ -58,17 +68,17 @@ describe("toReaderBook", () => {
 
   it("has long, multi-paragraph pages", () => {
     const [first] = toReaderBook(store, SAMPLE_USERNAMES.bilingual)!.chapters[0]!.pages;
-    expect(first!.content.content.length).toBeGreaterThanOrEqual(3);
-    expect(richTextPlainText(first!.content).length).toBeGreaterThan(400);
+    expect(first!.body.content.length).toBeGreaterThanOrEqual(3);
+    expect(pageBodyPlainText(first!.body).length).toBeGreaterThan(400);
   });
 
-  it("leaves out drafts, unpublished and archived pages, archived chapters, and private columns", () => {
+  it("leaves out drafts, unpublished and archived pages, draft and archived chapters, and private columns", () => {
     const book = toReaderBook(store, SAMPLE_USERNAMES.drafts)!;
     expect(book.chapters.map((chapter) => chapter.id)).toEqual([ids.drafts.chapters.live]);
     expect(book.chapters[0]!.pages.map((page) => page.id)).toEqual([ids.drafts.pages.published]);
     const text = bookText(SAMPLE_USERNAMES.drafts);
     for (const marker of Object.values(HIDDEN_MARKERS)) expect(text).not.toContain(marker);
-    for (const column of ["status", "position", "archived_at", "owner_id", "avatar_path", "deactivated_at"]) {
+    for (const column of ["status", "position", "archived_at", "owner_id", "avatar_path", "deactivated_at", "book_id"]) {
       expect(text).not.toContain(`"${column}"`);
     }
   });
@@ -112,7 +122,8 @@ describe("toReaderPage", () => {
     expect(view.writer.username).toBe(SAMPLE_USERNAMES.bilingual);
     expect(view.book.id).toBe(ids.bilingual.book);
     expect(view.chapter).toEqual({ id: ids.bilingual.chapters.rain, title: "बारिश / Rain" });
-    expect(view.page).toMatchObject({ id: ids.bilingual.pages.rainEnglish, language: "en", title: "Sample notes on rain" });
+    expect(view.page).toMatchObject({ id: ids.bilingual.pages.rainEnglish, language: "en" });
+    expect(pageBodyPlainText(view.page.body)).toMatch(/^Sample notes on rain\n\n/);
   });
 
   it.each([
@@ -120,6 +131,7 @@ describe("toReaderPage", () => {
     ["an unpublished page", ids.drafts.pages.unpublished],
     ["an archived page", ids.drafts.pages.archived],
     ["a page in an archived chapter", ids.drafts.pages.inArchivedChapter],
+    ["a page in a draft chapter", ids.drafts.pages.inDraftChapter],
     ["an unknown id", "5d000000-0000-4000-8000-00000000ffff"],
     ["another writer's page", ids.bilingual.pages.rainEnglish],
   ])("is null for %s", (_what, pageId) => {

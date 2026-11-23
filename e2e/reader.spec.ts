@@ -1,7 +1,7 @@
 import type { Browser } from "@playwright/test";
 
-import { richTextPlainText, type RichTextBlock } from "../src/contracts";
 import { loadConfig } from "../src/config/schema";
+import { pageBodyPlainText, pageBodyTextRuns } from "../src/lib/reader/__fixtures__/page-text";
 import { HIDDEN_MARKERS, SAMPLE_IDS, SAMPLE_USERNAMES, sampleBookStore } from "../src/lib/reader/fixtures";
 import { toReaderBook, toReaderPage } from "../src/lib/reader/project";
 import { en } from "../src/i18n/messages/en";
@@ -15,15 +15,6 @@ import { expect, test } from "./fixtures";
 const { appName } = loadConfig(process.env);
 const bilingualBook = toReaderBook(sampleBookStore, SAMPLE_USERNAMES.bilingual)!;
 const { bilingual, drafts } = SAMPLE_IDS;
-
-/** Runs of page text long enough not to match by accident. */
-function textRuns(blocks: readonly RichTextBlock[]): string[] {
-  return blocks.flatMap((block) =>
-    block.type === "blockquote"
-      ? textRuns(block.content)
-      : (block.content ?? []).flatMap((node) => (node.type === "text" && node.text.trim().length >= 5 ? [node.text] : [])),
-  );
-}
 
 async function withoutJavaScript(browser: Browser, baseURL: string | undefined, locale = "en-US") {
   const context = await browser.newContext({ javaScriptEnabled: false, locale, baseURL });
@@ -39,7 +30,7 @@ test.describe("the book route with JavaScript disabled", () => {
       bilingualBook.book.title,
       bilingualBook.writer.display_name,
       bilingualBook.writer.bio!,
-      ...bilingualBook.chapters.flatMap((chapter) => [chapter.title, ...chapter.pages.flatMap((page) => textRuns(page.content.content))]),
+      ...bilingualBook.chapters.flatMap((chapter) => [chapter.title, ...chapter.pages.flatMap((page) => pageBodyTextRuns(page.body))]),
     ];
     const positions = texts.map((text) => html.indexOf(text));
     expect(positions.filter((position) => position < 0)).toEqual([]);
@@ -57,8 +48,8 @@ test.describe("the book route with JavaScript disabled", () => {
     const { context, page } = await withoutJavaScript(browser, baseURL);
     await page.goto(`/${SAMPLE_USERNAMES.bilingual}`);
     const [hindi, english] = bilingualBook.chapters[0]!.pages;
-    await expect(page.locator('article[lang="hi"]').first()).toContainText(textRuns(hindi!.content.content)[0]!);
-    await expect(page.locator('article[lang="en"]').first()).toContainText(textRuns(english!.content.content)[0]!);
+    await expect(page.locator('article[lang="hi"]').first()).toContainText(pageBodyTextRuns(hindi!.body)[0]!);
+    await expect(page.locator('article[lang="en"]').first()).toContainText(pageBodyTextRuns(english!.body)[0]!);
     await expect(page.locator("article")).toHaveCount(5);
     await context.close();
   });
@@ -109,7 +100,7 @@ test.describe("a single page's route with JavaScript disabled", () => {
     const response = await request.get(path);
     expect(response.status()).toBe(200);
     const html = await response.text();
-    for (const paragraph of richTextPlainText(view.page.content).split("\n\n")) expect(html).toContain(paragraph);
+    for (const paragraph of pageBodyPlainText(view.page.body).split("\n\n")) expect(html).toContain(paragraph);
 
     const { context, page } = await withoutJavaScript(browser, baseURL);
     await page.goto(path);

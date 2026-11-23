@@ -8,9 +8,8 @@ import { ChapterSection } from "./ChapterSection";
 
 const page = (id: string, text: string, language: "hi" | "en"): ReaderPage => ({
   id,
-  title: null,
   language,
-  content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] },
+  body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] },
   published_at: "2026-11-10T09:00:00+00:00",
 });
 

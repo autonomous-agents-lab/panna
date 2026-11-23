@@ -3,9 +3,10 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { richTextPlainText, type BookSource, type ReaderPageView } from "@/contracts";
+import type { BookSource, ReaderPageView } from "@/contracts";
 import { catalogues } from "@/i18n/catalogue";
 import { createTranslator } from "@/i18n/translate";
+import { pageBodyPlainText } from "@/lib/reader/__fixtures__/page-text";
 import { HIDDEN_MARKERS, SAMPLE_IDS, SAMPLE_USERNAMES, sampleBookStore } from "@/lib/reader/fixtures";
 import { createMemoryBookSource } from "@/lib/reader/memory-source";
 
@@ -56,9 +57,8 @@ const handBuilt: ReaderPageView = {
   chapter: { id: "1f6b2f0e-1d2a-4c51-8a3b-7e9f2d1c4b20", title: "Fake chapter" },
   page: {
     id: "2f6b2f0e-1d2a-4c51-8a3b-7e9f2d1c4b20",
-    title: null,
     language: "en",
-    content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Fake page text." }] }] },
+    body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Fake page text." }] }] },
     published_at: "2026-11-10T09:00:00+00:00",
   },
 };
@@ -92,7 +92,7 @@ describe("/<username>/<pageId> HTML (AC-5)", () => {
     const html = await render(SAMPLE_USERNAMES.bilingual, bilingual.pages.morningHindi);
     const view = (await samples.getPublishedPage(SAMPLE_USERNAMES.bilingual, bilingual.pages.morningHindi))!;
     expect(html).toMatch(/<h2 [^>]*>सुबह \/ Morning<\/h2>/);
-    for (const paragraph of richTextPlainText(view.page.content).split("\n\n")) expect(html).toContain(paragraph);
+    for (const paragraph of pageBodyPlainText(view.page.body).split("\n\n")) expect(html).toContain(paragraph);
     expect(html).toContain(`<a href="/${SAMPLE_USERNAMES.bilingual}">नमूने की डायरी</a>`);
     expect(html).toContain("by Sample Writer");
     expect(html.match(/<article/g)).toHaveLength(1);
@@ -112,6 +112,7 @@ describe("/<username>/<pageId> not found (AC-4, AC-6)", () => {
     ["an unpublished page", drafts.pages.unpublished],
     ["an archived page", drafts.pages.archived],
     ["a page in an archived chapter", drafts.pages.inArchivedChapter],
+    ["a page in a draft chapter", drafts.pages.inDraftChapter],
     ["an unknown id", "5d000000-0000-4000-8000-00000000ffff"],
     ["another writer's page", bilingual.pages.rainEnglish],
   ])("is the 404 page for %s", async (_what, pageId) => {

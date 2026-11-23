@@ -3,9 +3,10 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { BookSource, ReaderBook, RichTextBlock } from "@/contracts";
+import type { BookSource, ReaderBook } from "@/contracts";
 import { catalogues } from "@/i18n/catalogue";
 import { createTranslator } from "@/i18n/translate";
+import { pageBodyTextRuns } from "@/lib/reader/__fixtures__/page-text";
 import { HIDDEN_MARKERS, SAMPLE_USERNAMES, sampleBookStore } from "@/lib/reader/fixtures";
 import { createMemoryBookSource } from "@/lib/reader/memory-source";
 
@@ -40,14 +41,6 @@ const props = (username: string) => ({ params: Promise.resolve({ username }) });
 const render = async (username: string) => renderToStaticMarkup(await BookRoute(props(username)));
 const NOT_FOUND = { digest: "NEXT_HTTP_ERROR_FALLBACK;404" };
 
-function textRuns(blocks: readonly RichTextBlock[]): string[] {
-  return blocks.flatMap((block) =>
-    block.type === "blockquote"
-      ? textRuns(block.content)
-      : (block.content ?? []).flatMap((node) => (node.type === "text" && node.text.trim().length >= 5 ? [node.text] : [])),
-  );
-}
-
 const handBuilt: ReaderBook = {
   writer: { username: "fake_writer", display_name: "Fake Writer", bio: "Only in this test.", photo_url: null },
   book: {
@@ -65,9 +58,8 @@ const handBuilt: ReaderBook = {
       pages: [
         {
           id: "2f6b2f0e-1d2a-4c51-8a3b-7e9f2d1c4b20",
-          title: null,
           language: "en",
-          content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Fake page text." }] }] },
+          body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Fake page text." }] }] },
           published_at: "2026-11-10T09:00:00+00:00",
         },
       ],
@@ -109,7 +101,7 @@ describe("/<username> HTML", () => {
     // Every chapter title and every run of page text (short runs like "." would match anywhere).
     const texts = book.chapters.flatMap((chapter) => [
       chapter.title,
-      ...chapter.pages.flatMap((page) => textRuns(page.content.content)),
+      ...chapter.pages.flatMap((page) => pageBodyTextRuns(page.body)),
     ]);
     expect(texts.length).toBeGreaterThan(20);
     const positions = texts.map((text) => html.indexOf(text));
@@ -121,15 +113,16 @@ describe("/<username> HTML", () => {
     const html = await render(SAMPLE_USERNAMES.bilingual);
     const languages = [...html.matchAll(/<article lang="(\w+)"/g)].map((match) => match[1]);
     expect(languages).toEqual(["hi", "en", "en", "hi", "en"]);
-    expect(html).toMatch(/<article lang="hi"[^>]*><h3[^>]*>नमूने की सुबह<\/h3><p>यह नमूने का पाठ है/);
-    expect(html).toMatch(/<article lang="en"[^>]*><h3[^>]*>A sample morning<\/h3><p>This is sample text/);
+    expect(html).toMatch(/<article lang="hi"[^>]*><h3>नमूने की सुबह<\/h3><p>यह नमूने का पाठ है/);
+    expect(html).toMatch(/<article lang="en"[^>]*><h3>A sample morning<\/h3><p>This is sample text/);
   });
 
-  it("shows no draft, unpublished or archived text (AC-4)", async () => {
+  it("shows no draft, unpublished or archived text, nor draft or archived chapters (AC-4)", async () => {
     const html = await render(SAMPLE_USERNAMES.drafts);
     expect(html).toContain("Sample published text from a book that also has drafts.");
     for (const marker of Object.values(HIDDEN_MARKERS)) expect(html).not.toContain(marker);
     expect(html).not.toContain("Sample archived chapter");
+    expect(html).not.toContain("Sample draft chapter");
   });
 
   it.each(["en", "hi"] as const)(

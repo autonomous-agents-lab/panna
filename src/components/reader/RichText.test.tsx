@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import type { RichTextDoc } from "@/contracts";
+import type { PageBody } from "@/contracts";
 
 import { RichText } from "./RichText";
 
-const render = (doc: RichTextDoc) => renderToStaticMarkup(<RichText doc={doc} />);
+const render = (body: PageBody) => renderToStaticMarkup(<RichText body={body} />);
 
 describe("RichText", () => {
   it("renders paragraphs, marks and line breaks as elements", () => {
@@ -20,7 +20,7 @@ describe("RichText", () => {
               { type: "text", text: "bold", marks: [{ type: "bold" }] },
               { type: "text", text: " " },
               { type: "text", text: "both", marks: [{ type: "bold" }, { type: "italic" }] },
-              { type: "hard_break" },
+              { type: "hardBreak" },
               { type: "text", text: "after", marks: [{ type: "italic" }] },
             ],
           },
@@ -30,21 +30,21 @@ describe("RichText", () => {
     ).toBe("<p>plain <strong>bold</strong> <em><strong>both</strong></em><br/><em>after</em></p><p></p>");
   });
 
-  it("renders headings below the page title, h4 to h6", () => {
+  it("renders headings below the chapter heading, h3 and h4", () => {
     expect(
       render({
         type: "doc",
-        content: [2, 3, 4].map((level) => ({
+        content: [2, 3].map((level) => ({
           type: "heading" as const,
-          attrs: { level: level as 2 | 3 | 4 },
+          attrs: { level: level as 2 | 3 },
           content: [{ type: "text" as const, text: `L${level}` }],
         })),
       }),
-    ).toBe("<h4>L2</h4><h5>L3</h5><h6>L4</h6>");
-    expect(render({ type: "doc", content: [{ type: "heading", attrs: { level: 2 } }] })).toBe("<h4></h4>");
+    ).toBe("<h3>L2</h3><h4>L3</h4>");
+    expect(render({ type: "doc", content: [{ type: "heading", attrs: { level: 2 } }] })).toBe("<h3></h3>");
   });
 
-  it("renders quotes, nested ones too", () => {
+  it("renders quotes of paragraphs", () => {
     expect(
       render({
         type: "doc",
@@ -53,19 +53,31 @@ describe("RichText", () => {
             type: "blockquote",
             content: [
               { type: "paragraph", content: [{ type: "text", text: "said" }] },
-              { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "inner" }] }] },
+              { type: "paragraph", content: [{ type: "text", text: "more" }] },
             ],
           },
         ],
       }),
-    ).toBe("<blockquote><p>said</p><blockquote><p>inner</p></blockquote></blockquote>");
+    ).toBe("<blockquote><p>said</p><p>more</p></blockquote>");
   });
 
-  it("escapes text, so markup in a page is shown, never run", () => {
+  it("renders images lazily with their alt text", () => {
+    const src = "https://abcdefghijkl.supabase.co/storage/v1/object/public/page-images/u/rain.webp";
+    expect(render({ type: "doc", content: [{ type: "image", attrs: { src, alt: "Rain on a window" } }] })).toBe(
+      `<img src="${src}" alt="Rain on a window" loading="lazy" decoding="async"/>`,
+    );
+  });
+
+  it("escapes text and attributes, so markup in a page is shown, never run", () => {
     const html = render({
       type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "text", text: '<script>alert("x")</script><img onerror=x>' }] }],
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: '<script>alert("x")</script><img onerror=x>' }] },
+        { type: "image", attrs: { src: "https://x.test/a.png", alt: '"><script>x</script>' } },
+      ],
     });
-    expect(html).toBe("<p>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&lt;img onerror=x&gt;</p>");
+    expect(html).toBe(
+      '<p>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&lt;img onerror=x&gt;</p><img src="https://x.test/a.png" alt="&quot;&gt;&lt;script&gt;x&lt;/script&gt;" loading="lazy" decoding="async"/>',
+    );
   });
 });

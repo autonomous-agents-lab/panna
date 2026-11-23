@@ -27,11 +27,12 @@ export interface TextLimit {
   max: number;
 }
 
-/** Text field limits for profiles and books. */
+/** Text field limits for profiles, books and chapters. */
 export const TEXT_LIMITS = {
   displayName: { min: 1, max: 50 },
   bio: { min: 0, max: 160 },
   avatarPath: { min: 1, max: 512 },
   bookTitle: { min: 1, max: 100 },
   bookSubtitle: { min: 0, max: 150 },
+  chapterTitle: { min: 1, max: 100 },
 } as const satisfies Record<string, TextLimit>;

@@ -9,11 +9,9 @@ import {
   pageSchema,
   readerBookSchema,
   readerPageViewSchema,
-  richTextDocSchema,
-  richTextPlainText,
   type ReaderBook,
-  type RichTextDoc,
 } from "./index";
+import { richTextDocSchema, richTextPlainText, type RichTextDoc } from "./rich-text";
 
 const readerBook: ReaderBook = {
   writer: { username: "asha_k", display_name: "आशा", bio: null, photo_url: "https://example.org/a.png" },
@@ -32,9 +30,8 @@ const readerBook: ReaderBook = {
       pages: [
         {
           id: "2f6b2f0e-1d2a-4c51-8a3b-7e9f2d1c4b20",
-          title: null,
           language: "hi",
-          content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "नमस्ते" }] }] },
+          body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "नमस्ते" }] }] },
           published_at: "2026-11-23T10:00:00+00:00",
         },
       ],
@@ -57,26 +54,29 @@ function without(value: unknown, path: (string | number)[]): unknown {
 
 const pageRow = {
   id: page.id,
+  book_id: readerBook.book.id,
   chapter_id: readerBook.chapters[0]!.id,
-  title: null,
-  language: "hi",
-  content: page.content,
   position: 0,
   status: "published",
   published_at: page.published_at,
+  archived_at: null,
+  language: "hi",
+  body: page.body,
   created_at: page.published_at,
   updated_at: page.published_at,
-  archived_at: null,
 };
 
 const chapterRow = {
   id: readerBook.chapters[0]!.id,
   book_id: readerBook.book.id,
-  title: "One",
   position: 0,
+  title: "One",
+  status: "published",
+  published_at: page.published_at,
+  archived_at: null,
+  language: "hi",
   created_at: page.published_at,
   updated_at: page.published_at,
-  archived_at: null,
 };
 
 describe("readerBookSchema (AC-1)", () => {
@@ -98,7 +98,7 @@ describe("readerBookSchema (AC-1)", () => {
     ["the book title", ["book", "title"]],
     ["the writer's display name", ["writer", "display_name"]],
     ["the writer's photo URL", ["writer", "photo_url"]],
-    ["a page's content", ["chapters", 0, "pages", 0, "content"]],
+    ["a page's body", ["chapters", 0, "pages", 0, "body"]],
     ["a page's published date", ["chapters", 0, "pages", 0, "published_at"]],
     ["a page's language", ["chapters", 0, "pages", 0, "language"]],
     ["a chapter's pages", ["chapters", 0, "pages"]],
@@ -124,7 +124,7 @@ describe("readerBookSchema (AC-1)", () => {
     const view = { writer: readerBook.writer, book: readerBook.book, chapter: { id: chapterRow.id, title: "One" }, page };
     expect(readerPageViewSchema.parse(view)).toEqual(view);
     expect(readerPageViewSchema.safeParse(without(view, ["chapter"])).success).toBe(false);
-    expect(readerPageViewSchema.safeParse(without(view, ["page", "content"])).success).toBe(false);
+    expect(readerPageViewSchema.safeParse(without(view, ["page", "body"])).success).toBe(false);
   });
 });
 
@@ -193,17 +193,17 @@ describe("chapter and page row schemas", () => {
   it.each([
     ["a bad status", { status: "scheduled" }],
     ["a bad language", { language: "fr" }],
-    ["unsafe content", { content: { type: "doc", content: [{ type: "script" }] } }],
+    ["an unsafe body", { body: { type: "doc", content: [{ type: "script" }] } }],
     ["a negative position", { position: -1 }],
     ["a fractional position", { position: 1.5 }],
-    ["a blank title", { title: "\t" }],
+    ["a title, which pages don't have", { title: "Title" }],
     ["an unknown column", { author_email: "a@example.org" }],
   ])("reject a page with %s", (_what, change) => {
     expect(pageSchema.safeParse({ ...pageRow, ...change }).success).toBe(false);
   });
 
-  it("requires page content", () => {
-    expect(() => pageSchema.parse(without(pageRow, ["content"]))).toThrow(ZodError);
+  it("requires a page body", () => {
+    expect(() => pageSchema.parse(without(pageRow, ["body"]))).toThrow(ZodError);
   });
 
   it.each([

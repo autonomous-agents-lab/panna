@@ -57,6 +57,52 @@ isOneToOne: true
       referencedColumns: ["id"]
     }
                   ]
+                },"chapters": {
+                  Row: {
+                    "archived_at": string | null,"book_id": string,"created_at": string,"id": string,"language": string,"position": number,"published_at": string | null,"status": string,"title": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "archived_at"?: string | null,"book_id": string,"created_at"?: string,"id"?: string,"language": string,"position": number,"published_at"?: string | null,"status"?: string,"title": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "archived_at"?: string | null,"book_id"?: string,"created_at"?: string,"id"?: string,"language"?: string,"position"?: number,"published_at"?: string | null,"status"?: string,"title"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "chapters_book_id_fkey"
+      columns: ["book_id"]
+isOneToOne: false
+      referencedRelation: "books"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"pages": {
+                  Row: {
+                    "archived_at": string | null,"body": NonNullable<Json>,"book_id": string,"chapter_id": string,"created_at": string,"id": string,"language": string,"position": number,"published_at": string | null,"status": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "archived_at"?: string | null,"body"?: NonNullable<Json>,"book_id": string,"chapter_id": string,"created_at"?: string,"id"?: string,"language": string,"position": number,"published_at"?: string | null,"status"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "archived_at"?: string | null,"body"?: NonNullable<Json>,"book_id"?: string,"chapter_id"?: string,"created_at"?: string,"id"?: string,"language"?: string,"position"?: number,"published_at"?: string | null,"status"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pages_book_id_fkey"
+      columns: ["book_id"]
+isOneToOne: false
+      referencedRelation: "books"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "pages_chapter_id_book_id_fkey"
+      columns: ["chapter_id","book_id"]
+isOneToOne: false
+      referencedRelation: "chapters"
+      referencedColumns: ["id","book_id"]
+    }
+                  ]
                 },"profiles": {
                   Row: {
                     "avatar_path": string | null,"bio": string | null,"created_at": string,"deactivated_at": string | null,"display_name": string,"id": string,"preferred_language": string,"updated_at": string,"username": string,"username_changed_at": string | null
