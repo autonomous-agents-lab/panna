@@ -8,6 +8,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const COMMIT_SHA = /^[0-9a-f]{7,40}$/i;
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const errorMessage = (error) => (error instanceof Error ? error.message : String(error));
 
 async function get(fetchImpl, url) {
   return fetchImpl(url, { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
@@ -43,14 +44,14 @@ export async function waitForDeploy({
       const { version, seen } = await describeHealth(await get(fetchImpl, healthUrl));
       lastSeen = seen;
       live = version === expectedVersion;
-      // A just-published deploy can briefly answer 404 on paths it serves, so the key pages are
-      // polled to the same deadline as the version rather than failing on their first answer.
+      // Key pages are polled to the same deadline as the version; each non-200 answer or failed
+      // request is warned about so its source can be identified.
       if (live) {
         lastSeen = await firstPageNotOk(fetchImpl, baseUrl, checkPaths, warn);
         if (!lastSeen) return;
       }
     } catch (error) {
-      lastSeen = `network error (${error instanceof Error ? error.message : String(error)})`;
+      lastSeen = `network error (${errorMessage(error)})`;
     }
 
     const elapsed = now() - startedAt;
@@ -70,14 +71,21 @@ export async function waitForDeploy({
 }
 
 /**
- * The first key page that doesn't answer 200, described, or undefined when they all do. Each
- * such answer is also warned about, so a flaky route that recovers before the deadline still
- * leaves a trace on the run instead of passing unseen.
+ * The first key page that doesn't answer 200 or whose request fails, described, or undefined
+ * when they all answer 200. Each such page is also warned about, so a flaky route that recovers
+ * before the deadline still leaves a trace on the run instead of passing unseen.
  */
 async function firstPageNotOk(fetchImpl, baseUrl, paths, warn) {
   for (const path of paths) {
     const url = new URL(path, baseUrl).href;
-    const response = await get(fetchImpl, url);
+    let response;
+    try {
+      response = await get(fetchImpl, url);
+    } catch (error) {
+      const failure = `${url} failed (network error: ${errorMessage(error)})`;
+      warn(`::warning::${failure}`);
+      return failure;
+    }
     if (response.status !== 200) {
       warn(`::warning::${await describeNotOk(url, response)}`);
       return `${url} answered HTTP ${response.status}`;
@@ -138,7 +146,7 @@ export async function main(env = process.env, log = console, options = {}) {
     return 0;
   } catch (error) {
     // `::error::` makes GitHub Actions show the message as an annotation on the run.
-    log.error(`::error::${error instanceof Error ? error.message : String(error)}`);
+    log.error(`::error::${errorMessage(error)}`);
     return 1;
   }
 }

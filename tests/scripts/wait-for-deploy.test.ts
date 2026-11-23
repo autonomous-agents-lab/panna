@@ -224,7 +224,32 @@ describe("waitForDeploy", () => {
 
     await expect(
       waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: MINUTE, ...deploy.options }),
-    ).rejects.toThrow(`but its key pages did not all answer 200 within 1 minutes (last seen: network error (socket hang up))`);
+    ).rejects.toThrow(
+      `but its key pages did not all answer 200 within 1 minutes (last seen: ${BASE}/ failed (network error: socket hang up))`,
+    );
+  });
+
+  it("warns about a key page whose request fails once, then passes when it answers 200", async () => {
+    const deploy = deployWithKeyPage("/", () => {
+      throw new Error("The operation was aborted due to timeout");
+    });
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.sleep.mock.calls.map(([ms]) => ms)).toEqual([5_000]);
+    expect(deploy.warn).toHaveBeenCalledExactlyOnceWith(
+      `::warning::${BASE}/ failed (network error: The operation was aborted due to timeout)`,
+    );
+  });
+
+  it("describes a non-Error rejection on a key page as text", async () => {
+    const deploy = deployWithKeyPage("/", () => {
+      throw "reset";
+    });
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.warn).toHaveBeenCalledExactlyOnceWith(`::warning::${BASE}/ failed (network error: reset)`);
   });
 
   it("checks only the paths it is given", async () => {
