@@ -38,6 +38,10 @@ export default defineConfig({
         "src/app/fonts.ts",
         "src/lib/supabase/database.types.ts",
       ],
+      // The page body sanitiser and renderer guard every page against unsafe HTML.
+      thresholds: {
+        "src/contracts/page-body/**": { branches: 100, functions: 100, lines: 100, statements: 100 },
+      },
     },
   },
 });

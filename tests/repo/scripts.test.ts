@@ -20,6 +20,13 @@ describe("npm scripts", () => {
     expect(scripts["test:unit"]).toBe("vitest run");
   });
 
+  it("runs the unit tests with coverage, enforcing full coverage of the page body sanitiser and renderer", async () => {
+    expect(scripts["test:coverage"]).toBe("vitest run --coverage");
+    const { default: vitestConfig } = await import("../../vitest.config");
+    const full = { branches: 100, functions: 100, lines: 100, statements: 100 };
+    expect(vitestConfig.test?.coverage?.thresholds).toMatchObject({ "src/contracts/page-body/**": full });
+  });
+
   it("keeps the stable dev, build and e2e commands", () => {
     expect(scripts.dev).toBe("next dev");
     expect(scripts.build).toBe("next build");
