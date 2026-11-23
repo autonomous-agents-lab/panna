@@ -29,6 +29,7 @@ export async function waitForDeploy({
   fetch: fetchImpl = globalThis.fetch,
   now = Date.now,
   sleep = defaultSleep,
+  warn = console.warn,
 }) {
   const healthUrl = new URL("/api/health", baseUrl).href;
   const startedAt = now();
@@ -45,7 +46,7 @@ export async function waitForDeploy({
       // A just-published deploy can briefly answer 404 on paths it serves, so the key pages are
       // polled to the same deadline as the version rather than failing on their first answer.
       if (live) {
-        lastSeen = await firstPageNotOk(fetchImpl, baseUrl, checkPaths);
+        lastSeen = await firstPageNotOk(fetchImpl, baseUrl, checkPaths, warn);
         if (!lastSeen) return;
       }
     } catch (error) {
@@ -68,14 +69,38 @@ export async function waitForDeploy({
   }
 }
 
-/** The first key page that doesn't answer 200, described, or undefined when they all do. */
-async function firstPageNotOk(fetchImpl, baseUrl, paths) {
+/**
+ * The first key page that doesn't answer 200, described, or undefined when they all do. Each
+ * such answer is also warned about, so a flaky route that recovers before the deadline still
+ * leaves a trace on the run instead of passing unseen.
+ */
+async function firstPageNotOk(fetchImpl, baseUrl, paths, warn) {
   for (const path of paths) {
     const url = new URL(path, baseUrl).href;
     const response = await get(fetchImpl, url);
-    if (response.status !== 200) return `${url} answered HTTP ${response.status}`;
+    if (response.status !== 200) {
+      warn(`::warning::${await describeNotOk(url, response)}`);
+      return `${url} answered HTTP ${response.status}`;
+    }
   }
   return undefined;
+}
+
+/**
+ * A non-200 key-page answer with what tells its source apart: an HTML page that loads the app's
+ * Next.js assets is the app's own not-found page (a route matched wrongly), anything else came
+ * from the host (the deploy isn't serving that path yet).
+ */
+async function describeNotOk(url, response) {
+  const header = (name) => response.headers.get(name) ?? "none";
+  const contentType = header("content-type");
+  const body = await response.text().catch(() => "");
+  const fromApp = contentType.startsWith("text/html") && body.includes("/_next/");
+  const requestId = response.headers.get("x-nf-request-id") ?? header("x-request-id");
+  return (
+    `${url} answered HTTP ${response.status} (content-type: ${contentType}, cache-status: ${header("cache-status")}, ` +
+    `request id: ${requestId}, app ${response.status === 404 ? "not-found " : ""}page: ${fromApp ? "yes" : "no"}).`
+  );
 }
 
 /** Reads and validates the CLI's environment. Throws a message naming the bad variable. */
@@ -107,7 +132,8 @@ export async function main(env = process.env, log = console, options = {}) {
   try {
     const target = readCliEnv(env);
     log.log(`Waiting for ${target.baseUrl} to serve ${target.expectedVersion}...`);
-    await waitForDeploy({ ...options, ...target });
+    // `::warning::` lines go to the same log as the progress, where GitHub Actions annotates them.
+    await waitForDeploy({ warn: (message) => log.log(message), ...options, ...target });
     log.log(`${target.baseUrl} serves ${target.expectedVersion}, and its key pages answer 200.`);
     return 0;
   } catch (error) {
