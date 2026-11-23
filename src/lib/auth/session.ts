@@ -12,8 +12,9 @@ export type SignedInUser = { id: string; email?: string };
 /**
  * The signed-in user of the current request, or null. Also null when Supabase isn't configured,
  * so public pages and the header still render (as signed out). The proxy has already verified
- * and refreshed the session with Supabase Auth, so this verifies the access token's claims
- * instead of asking Auth again. Cached per request, because the header and the page both ask.
+ * and refreshed the session with Supabase Auth, so this only verifies the access token's claims:
+ * locally with asymmetric signing keys, while HS256 projects (the local stack's default) fall back
+ * to asking Auth. Cached per request, because the header and the page both ask.
  */
 export const getCurrentUser = cache(async (): Promise<SignedInUser | null> => {
   if (!hasSupabaseConfig()) return null;

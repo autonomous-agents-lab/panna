@@ -87,7 +87,8 @@ describe("hosting docs and ignores (AC-7)", () => {
   it(".env.example notes which variables are set in Netlify and that the service-role key is server-only", () => {
     const block = (name: string) => envExample.split(`\n${name}=`)[0]?.split(/\n\n/).at(-1) ?? "";
     expect(block("NEXT_PUBLIC_APP_NAME")).toMatch(/^# Set in Netlify/m);
-    // The database is local only (BOOK-17), so deploys get no Supabase values.
+    // For now the database is local only, by the owner's decision on BOOK-17, so deploys get no
+    // Supabase values. This assertion follows that decision and flips when a hosted project is wired up.
     for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"]) {
       expect(block(name), name).toMatch(/Not set in Netlify[^.]*local only/);
     }

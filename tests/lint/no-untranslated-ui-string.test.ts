@@ -66,7 +66,9 @@ ruleTester.run("no-untranslated-ui-string", rule, {
   ],
 });
 
-describe("the i18n lint rule in the project's ESLint config", () => {
+// The first lint loads the whole project config (typescript-eslint, Next's plugins), which can take
+// several seconds while the rest of the suite runs in parallel workers.
+describe("the i18n lint rule in the project's ESLint config", { timeout: 30_000 }, () => {
   const repoRoot = join(import.meta.dirname, "..", "..");
   const eslint = new ESLint({ cwd: repoRoot });
   const probe = 'export function Probe() {\n  return (\n    <p title="Greeting">\n      Hello\n    </p>\n  );\n}\n';
@@ -102,5 +104,5 @@ describe("the i18n lint rule in the project's ESLint config", () => {
         .map((message) => `${result.filePath}:${message.line} ${message.message}`),
     );
     expect(problems).toEqual([]);
-  }, 30_000);
+  });
 });
