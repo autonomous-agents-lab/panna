@@ -1,0 +1,11 @@
+/* The book's text column, shared by the book route and a single page's route. */
+.book {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0 var(--space-4) var(--space-12);
+}
+
+.empty {
+  margin: var(--space-8) 0 0;
+  color: var(--color-ink-muted);
+}

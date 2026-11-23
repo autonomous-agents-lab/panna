@@ -51,4 +51,8 @@ export const RESERVED_USERNAMES = [
   "support",
   "contact",
   "test-only",
+  // The reader's sample books (src/lib/reader/fixtures.ts) are served at these names.
+  "sample_writer_bilingual",
+  "sample_writer_empty",
+  "sample_writer_drafts",
 ] as const;

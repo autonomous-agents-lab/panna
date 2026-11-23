@@ -26,4 +26,10 @@ export const en = {
   "username.error.reserved": "That username is reserved. Please choose another.",
   "username.error.held": "That username was used recently and isn’t available yet.",
   "username.error.taken": "That username is already taken.",
+  "reader.documentTitle": "{bookTitle} by {writerName}",
+  "reader.pageDocumentTitle": "{chapterTitle}: {bookTitle} by {writerName}",
+  "reader.byline": "by {writerName}",
+  "reader.writerPhoto": "Photo of {writerName}",
+  "reader.publishedOn": "Published on {date}",
+  "reader.empty": "Nothing has been published in this book yet.",
 } as const satisfies Record<string, string>;

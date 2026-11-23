@@ -48,4 +48,13 @@ describe("pageMetadata", () => {
     expect(metadata.title).toEqual({ absolute: `${catalogues.hi["notFound.title"]} · Kitaab` });
     expect(metadata.robots).toEqual({ index: false, follow: true });
   });
+
+  it("fills the title's placeholders from titleValues", async () => {
+    const pageMetadata = await load({ NEXT_PUBLIC_APP_NAME: "Kitaab" });
+    const metadata = await pageMetadata({
+      titleKey: "reader.documentTitle",
+      titleValues: { bookTitle: "Rain", writerName: "Asha" },
+    });
+    expect(metadata.title).toEqual({ absolute: "Rain by Asha · Kitaab" });
+  });
 });
