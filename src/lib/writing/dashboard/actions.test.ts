@@ -161,21 +161,19 @@ describe("creating, renaming and moving (AC-3)", () => {
   });
 
   it.each([
-    ["up", 2, ["A", "C", "B"], 2],
-    ["down", 0, ["B", "A", "C"], 2],
-  ] as const)("moves a page %s among the listed pages, keeping archived pages", async (direction, index, order, position) => {
-    const { actions, store, list, pages } = await seeded();
-    const archived = await store.createPage(STAND_IN_WRITER, { chapterId: (await list())[0]!.id, language: "en", title: "X" });
+    ["up", 2, ["A", "X", "C", "B"], 2],
+    ["down", 0, ["B", "X", "A", "C"], 2],
+  ] as const)("moves a page %s among the listed pages, leaving archived pages in place", async (direction, index, order, position) => {
+    const { actions, store, list, one, pages } = await seeded();
+    const archived = await store.createPage(STAND_IN_WRITER, { chapterId: one, language: "en", title: "X" });
     if (!archived.ok) throw new Error("seeding failed");
     await store.archivePage(STAND_IN_WRITER, { pageId: archived.value.id });
+    await store.reorderPages(STAND_IN_WRITER, { chapterId: one, pageIds: [pages[0], archived.value.id, pages[1], pages[2]] });
 
     const state = await actions.movePage(IDLE, form({ pageId: pages[index], direction }));
 
     expect(state).toMatchObject({ status: "ok", moved: { direction, position, count: 3 } });
-    expect((await list())[0]?.pages.map((page) => [page.title, page.status === "archived"])).toEqual([
-      ...order.map((title) => [title, false]),
-      ["X", true],
-    ]);
+    expect((await list())[0]?.pages.map((page) => page.title)).toEqual(order);
   });
 
   it("announces an untitled page by its placeholder", async () => {

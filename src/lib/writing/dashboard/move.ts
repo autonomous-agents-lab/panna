@@ -24,8 +24,9 @@ export function moveId(ids: readonly string[], id: string, direction: MoveDirect
 
 /**
  * Moves a page among its chapter's pages that aren't archived, which are the ones the dashboard
- * lists in order. The contract's reorderPages needs every page id, so the archived ones follow,
- * in their existing relative order. Position and count are among the listed pages.
+ * lists in order. The contract's reorderPages needs every page id, so archived pages stay in their
+ * slots and only the moved page and its listed neighbour swap; a restored page comes back where it
+ * was. Position and count are among the listed pages.
  */
 export function pageOrderAfterMove(
   pages: readonly Pick<PageSummary, "id" | "status">[],
@@ -38,8 +39,9 @@ export function pageOrderAfterMove(
     direction,
   );
   if (!listed) return null;
-  const archived = pages.filter((page) => page.status === "archived").map((page) => page.id);
-  return { ...listed, ids: [...listed.ids, ...archived] };
+  let next = 0;
+  const ids = pages.map((page) => (page.status === "archived" ? page.id : listed.ids[next++]!));
+  return { ...listed, ids };
 }
 
 /**

@@ -7,7 +7,10 @@ export const TEST_ROUTES_TAG = "@test-routes";
  */
 export const IN_MEMORY_STORE_TAG = "@in-memory-store";
 
-/** The local Supabase values .env.example documents (the anon key is its placeholder). */
+/**
+ * The local Supabase values .env.example documents (the anon key is its placeholder). Copied from
+ * there; tests/repo/e2e-target.test.ts fails if the two drift apart.
+ */
 export const LOCAL_SUPABASE = {
   url: "http://127.0.0.1:54321",
   anonKey: "replace-with-anon-key-from-supabase-status",

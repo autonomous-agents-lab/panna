@@ -169,7 +169,7 @@ export function createDashboardActions({
       }),
     ),
 
-    /** Among the chapter's pages that aren't archived; archived ones keep their relative order. */
+    /** Among the chapter's pages that aren't archived; archived ones keep their places. */
     movePage: action(forms.movePage, (writer, { pageId, direction: towards }) =>
       withChapters(writer, async (chapters) => {
         const found = findPage(chapters, pageId);

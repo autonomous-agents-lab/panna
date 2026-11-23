@@ -37,13 +37,13 @@ describe("pageOrderAfterMove (AC-3)", () => {
     { id: "p3", status: "draft" },
   ] as const;
 
-  it("moves among the pages that aren't archived and appends the archived ones in their relative order", () => {
-    expect(pageOrderAfterMove(pages, "p3", "up")).toEqual({ ids: ["p1", "p3", "p2", "x1", "x2"], position: 2, count: 3 });
-    expect(pageOrderAfterMove(pages, "p1", "down")).toEqual({ ids: ["p2", "p1", "p3", "x1", "x2"], position: 2, count: 3 });
+  it("swaps the page with its listed neighbour and leaves archived pages in their slots", () => {
+    expect(pageOrderAfterMove(pages, "p3", "up")).toEqual({ ids: ["p1", "x1", "p3", "x2", "p2"], position: 2, count: 3 });
+    expect(pageOrderAfterMove(pages, "p1", "down")).toEqual({ ids: ["p2", "x1", "p1", "x2", "p3"], position: 2, count: 3 });
   });
 
   it("skips over archived pages, which aren't listed among the chapter's pages", () => {
-    expect(pageOrderAfterMove(pages, "p2", "up")?.ids.slice(0, 3)).toEqual(["p2", "p1", "p3"]);
+    expect(pageOrderAfterMove(pages, "p2", "up")?.ids).toEqual(["p2", "x1", "p1", "x2", "p3"]);
   });
 
   it.each([

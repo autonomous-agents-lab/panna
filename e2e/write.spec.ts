@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Locator, Page, Route } from "@playwright/test";
 
 import { en } from "../src/i18n/messages/en";
 import { hi } from "../src/i18n/messages/hi";
@@ -63,9 +63,12 @@ test.describe("the writing dashboard flow", { tag: IN_MEMORY_STORE_TAG }, () => 
     await page.getByLabel(en["write.field.pageTitle"], { exact: true }).fill("Evening");
     await page.getByRole("button", { name: en["write.action.save"] }).click();
     await expect(secondPages.getByRole("listitem").first()).toContainText("Evening");
+    await expect(secondPages.getByRole("button", { name: "Rename: Evening" })).toBeFocused();
 
     await secondPages.getByRole("button", { name: "Move down: Evening" }).click();
     await expect(secondPages.getByRole("listitem").last()).toContainText("Evening");
+    // It reached the bottom, so focus moves to its Move up.
+    await expect(secondPages.getByRole("button", { name: "Move up: Evening" })).toBeFocused();
 
     await page.getByRole("button", { name: "Rename: Second" }).click();
     await page.getByLabel(en["write.field.chapterTitle"], { exact: true }).fill("दूसरा");
@@ -106,6 +109,38 @@ test.describe("the writing dashboard flow", { tag: IN_MEMORY_STORE_TAG }, () => 
     await expect(chapterHeadings(page)).toHaveText([en["write.firstChapterTitle"], "दूसरा"]);
     // It reached the bottom, so its Move down is disabled and focus moves to its Move up.
     await expect(page.getByRole("button", { name: "Move up: दूसरा" })).toBeFocused();
+  });
+
+  test("a failed save shows a non-blocking notice, keeps the last saved order, and Retry applies it (AC-8)", async ({
+    page,
+  }) => {
+    await page.goto("/write");
+    const saved = [en["write.firstChapterTitle"], "दूसरा"];
+    await expect(chapterHeadings(page)).toHaveText(saved);
+
+    // Server Actions POST to the page they run on; drop them as a lost connection would.
+    const dropActions = (route: Route) => (route.request().method() === "POST" ? route.abort() : route.fallback());
+    await page.route("**/write", dropActions);
+    await page.getByRole("button", { name: "Move up: दूसरा" }).click();
+
+    const notice = page.getByRole("alert").filter({ hasText: en["write.error.saveFailed"] });
+    const retry = page.getByRole("button", { name: en["write.error.retry"] });
+    await expect(notice).toBeVisible();
+    await expect(retry).toBeVisible();
+    await expect(chapterHeadings(page)).toHaveText(saved);
+    // Not a dialog: the rest of the dashboard stays usable.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByLabel(en["write.newChapter.label"])).toBeEditable();
+
+    await page.unroute("**/write", dropActions);
+    await retry.click();
+
+    await expect(chapterHeadings(page)).toHaveText(["दूसरा", en["write.firstChapterTitle"]]);
+    await expect(notice).toHaveCount(0);
+    await expect(retry).toHaveCount(0);
+
+    await page.reload();
+    await expect(chapterHeadings(page)).toHaveText(["दूसरा", en["write.firstChapterTitle"]]);
   });
 
   test("in Hindi, the chrome is Hindi and Devanagari titles use the Devanagari font (AC-6)", async ({ page }) => {
