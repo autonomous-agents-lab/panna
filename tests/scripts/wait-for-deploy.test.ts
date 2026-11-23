@@ -16,17 +16,21 @@ type Reply = Response | { throws: unknown };
 const health = (version: string) => Response.json({ status: "ok", version, time: new Date(0).toISOString() });
 const status = (code: number) => new Response("", { status: code });
 
+/** The next reply from a queue whose last entry repeats. */
+const next = <T>(queue: T[]): T | undefined => (queue.length > 1 ? queue.shift() : queue[0]);
+
 /**
  * A fake clock and deploy. /api/health answers with `replies` in order, the last one repeating;
- * other paths answer with the status in `pages`, 200 by default.
+ * other paths answer with the statuses in `pages` in the same way, 200 by default.
  */
-function fakeDeploy(replies: Reply[], pages: Record<string, number> = {}) {
+function fakeDeploy(replies: Reply[], pages: Record<string, number[]> = {}) {
   let time = 0;
   const queue = [...replies];
+  const pageQueues = Object.fromEntries(Object.entries(pages).map(([path, codes]) => [path, [...codes]]));
   const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {
     const path = new URL(url).pathname;
-    if (path !== "/api/health") return status(pages[path] ?? 200);
-    const reply = queue.length > 1 ? queue.shift() : queue[0];
+    if (path !== "/api/health") return status(next(pageQueues[path] ?? []) ?? 200);
+    const reply = next(queue);
     if (!(reply instanceof Response)) throw reply?.throws;
     return reply.clone();
   });
@@ -91,12 +95,51 @@ describe("waitForDeploy", () => {
     expect(deploy.sleep.mock.calls.map(([ms]) => ms)).toEqual([3 * MINUTE, 3 * MINUTE, 2 * MINUTE]);
   });
 
-  it("fails when a key page doesn't answer 200 on the expected version", async () => {
-    const deploy = fakeDeploy([health(SHA)], { "/": 500 });
+  it("keeps polling while a key page briefly answers 404 on the expected version", async () => {
+    // What a just-published Netlify deploy did: the right version, then a 404 on /api/health.
+    const deploy = fakeDeploy([health(SHA), status(404), health(SHA)]);
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.sleep.mock.calls.map(([ms]) => ms)).toEqual([5_000]);
+    expect(deploy.fetch.mock.calls.map(([url]) => url)).toEqual([
+      `${BASE}/api/health`,
+      `${BASE}/`,
+      `${BASE}/api/health`,
+      `${BASE}/api/health`,
+      `${BASE}/`,
+      `${BASE}/api/health`,
+    ]);
+  });
+
+  it("fails when a key page keeps answering other than 200 on the expected version until the deadline", async () => {
+    const deploy = fakeDeploy([health(SHA)], { "/": [500] });
+
+    const waiting = waitForDeploy({
+      baseUrl: BASE,
+      expectedVersion: SHA,
+      timeoutMs: 8 * MINUTE,
+      intervalMs: 3 * MINUTE,
+      ...deploy.options,
+    });
+
+    await expect(waiting).rejects.toThrow(
+      `${BASE} serves ${SHA}, but its key pages did not all answer 200 within 8 minutes ` +
+        `(last seen: ${BASE}/ answered HTTP 500).`,
+    );
+    expect(deploy.sleep.mock.calls.map(([ms]) => ms)).toEqual([3 * MINUTE, 3 * MINUTE, 2 * MINUTE]);
+  });
+
+  it("reports a network error on a key page as the last thing seen", async () => {
+    const deploy = fakeDeploy([health(SHA)]);
+    deploy.fetch.mockImplementation(async (url) => {
+      if (new URL(url).pathname === "/") throw new Error("socket hang up");
+      return health(SHA);
+    });
 
     await expect(
-      waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, ...deploy.options }),
-    ).rejects.toThrow(`${BASE}/ answered HTTP 500 on version ${SHA}; expected 200.`);
+      waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: MINUTE, ...deploy.options }),
+    ).rejects.toThrow(`but its key pages did not all answer 200 within 1 minutes (last seen: network error (socket hang up))`);
   });
 
   it("checks only the paths it is given", async () => {

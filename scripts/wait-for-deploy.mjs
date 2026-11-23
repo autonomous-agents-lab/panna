@@ -33,34 +33,49 @@ export async function waitForDeploy({
   const healthUrl = new URL("/api/health", baseUrl).href;
   const startedAt = now();
   let lastSeen = "no response yet";
+  // Whether /api/health reported the expected version on the latest attempt.
+  let live = false;
 
   for (;;) {
+    live = false;
     try {
       const { version, seen } = await describeHealth(await get(fetchImpl, healthUrl));
-      if (version === expectedVersion) break;
       lastSeen = seen;
+      live = version === expectedVersion;
+      // A just-published deploy can briefly answer 404 on paths it serves, so the key pages are
+      // polled to the same deadline as the version rather than failing on their first answer.
+      if (live) {
+        lastSeen = await firstPageNotOk(fetchImpl, baseUrl, checkPaths);
+        if (!lastSeen) return;
+      }
     } catch (error) {
       lastSeen = `network error (${error instanceof Error ? error.message : String(error)})`;
     }
 
     const elapsed = now() - startedAt;
     if (elapsed >= timeoutMs) {
+      const minutes = timeoutMs / MINUTE_MS;
       throw new Error(
-        `${healthUrl} did not report version ${expectedVersion} within ${timeoutMs / MINUTE_MS} minutes ` +
-          `(last seen: ${lastSeen}). The deploy failed, is still building or is queued behind another ` +
-          "build: check it in Netlify, then re-run this job.",
+        live
+          ? `${baseUrl} serves ${expectedVersion}, but its key pages did not all answer 200 within ${minutes} ` +
+              `minutes (last seen: ${lastSeen}).`
+          : `${healthUrl} did not report version ${expectedVersion} within ${minutes} minutes ` +
+              `(last seen: ${lastSeen}). The deploy failed, is still building or is queued behind another ` +
+              "build: check it in Netlify, then re-run this job.",
       );
     }
     await sleep(Math.min(intervalMs, timeoutMs - elapsed));
   }
+}
 
-  for (const path of checkPaths) {
+/** The first key page that doesn't answer 200, described, or undefined when they all do. */
+async function firstPageNotOk(fetchImpl, baseUrl, paths) {
+  for (const path of paths) {
     const url = new URL(path, baseUrl).href;
     const response = await get(fetchImpl, url);
-    if (response.status !== 200) {
-      throw new Error(`${url} answered HTTP ${response.status} on version ${expectedVersion}; expected 200.`);
-    }
+    if (response.status !== 200) return `${url} answered HTTP ${response.status}`;
   }
+  return undefined;
 }
 
 /** Reads and validates the CLI's environment. Throws a message naming the bad variable. */
