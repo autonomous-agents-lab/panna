@@ -38,9 +38,12 @@ export default defineConfig({
         "src/app/fonts.ts",
         "src/lib/supabase/database.types.ts",
       ],
-      // The page body sanitiser and renderer guard every page against unsafe HTML.
+      // The page body sanitiser and renderer guard every page against unsafe HTML. The writing
+      // contract and repositories keep each writer's chapters and pages apart.
       thresholds: {
         "src/contracts/page-body/**": { branches: 100, functions: 100, lines: 100, statements: 100 },
+        "src/contracts/{writing,current-writer}.ts": { branches: 100, functions: 100, lines: 100, statements: 100 },
+        "src/lib/writing/**": { branches: 100, functions: 100, lines: 100, statements: 100 },
       },
     },
   },
