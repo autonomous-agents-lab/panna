@@ -81,3 +81,29 @@ describe("getSupabaseConfig", () => {
     expect(() => getSupabaseConfig()).toThrow(KEY_VAR);
   });
 });
+
+describe("hasSupabaseConfig", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("is true when both variables are valid", async () => {
+    const { hasSupabaseConfig } = await import("./index");
+    vi.stubEnv(URL_VAR, "https://project.supabase.co");
+    vi.stubEnv(KEY_VAR, "anon");
+
+    expect(hasSupabaseConfig()).toBe(true);
+  });
+
+  it.each([
+    [undefined, "anon"],
+    ["not-a-url", "anon"],
+    ["https://project.supabase.co", " "],
+  ])("is false, without throwing, for URL %j and key %j", async (url, key) => {
+    const { hasSupabaseConfig } = await import("./index");
+    vi.stubEnv(URL_VAR, url);
+    vi.stubEnv(KEY_VAR, key);
+
+    expect(hasSupabaseConfig()).toBe(false);
+  });
+});

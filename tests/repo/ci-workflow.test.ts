@@ -17,6 +17,7 @@ type Step = {
 };
 type Job = {
   if?: string;
+  env?: Record<string, string>;
   needs?: string | string[];
   "runs-on": string;
   "timeout-minutes"?: number;
@@ -173,6 +174,41 @@ describe("CI database job (AC-3)", () => {
     const start = runs("db").find((command) => command.startsWith("supabase start")) ?? "";
     const excluded = /-x (\S+)/.exec(start)?.[1]?.split(",") ?? [];
     for (const needed of ["postgres", "gotrue", "kong", "postgrest"]) expect(excluded).not.toContain(needed);
+  });
+});
+
+describe("CI e2e job runs against local Supabase (BOOK-17)", () => {
+  const commands = runs("e2e");
+  const start = commands.findIndex((command) => command.startsWith("supabase start"));
+  const exportEnv = commands.findIndex((command) => command.startsWith("supabase status -o env"));
+
+  it("uses the same Supabase CLI version as the devDependency", () => {
+    expect(String(stepUsing("e2e", "supabase/setup-cli").with?.version)).toBe(packageJson.devDependencies.supabase);
+  });
+
+  it("starts Supabase with Auth, the API and Mailpit, then hands the app its URL and anon key before the tests", () => {
+    const excluded = /-x (\S+)/.exec(commands[start] ?? "")?.[1]?.split(",") ?? [];
+    for (const needed of ["postgres", "gotrue", "kong", "postgrest", "mailpit"]) expect(excluded).not.toContain(needed);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(exportEnv).toBeGreaterThan(start);
+    expect(commands.indexOf("npm run test:e2e")).toBeGreaterThan(exportEnv);
+  });
+
+  it("exports only the public URL and anon key from supabase status", () => {
+    const command = commands[exportEnv] ?? "";
+    expect(command).toContain("--override-name api.url=NEXT_PUBLIC_SUPABASE_URL");
+    expect(command).toContain("--override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    expect(command).toContain(`grep -E '^NEXT_PUBLIC_SUPABASE_(URL|ANON_KEY)='`);
+    expect(command).toMatch(/>> "\$GITHUB_ENV"$/);
+  });
+
+  it.each(["e2e", "db"])("%s gives the Supabase CLI placeholder Google credentials, never real ones", (name) => {
+    expect(job(name)).toMatchObject({
+      env: {
+        SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID: "placeholder-google-client-id",
+        SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: "placeholder-google-secret",
+      },
+    });
   });
 });
 

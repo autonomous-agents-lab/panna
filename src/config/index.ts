@@ -26,3 +26,13 @@ export function getSupabaseConfig(): SupabaseConfig {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   });
 }
+
+/** Whether the Supabase variables are set and valid, for code that must work without them. */
+export function hasSupabaseConfig(): boolean {
+  try {
+    getSupabaseConfig();
+    return true;
+  } catch {
+    return false;
+  }
+}
