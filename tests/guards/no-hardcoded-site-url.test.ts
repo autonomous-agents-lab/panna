@@ -12,7 +12,10 @@ const srcRoot = join(repoRoot, "src");
 const EXCLUDES = ["config/**", "**/__fixtures__/**", "**/*.test.ts", "**/*.test.tsx"];
 
 // Exact strings only, each with its reason. Adding one is a deliberate change, justified in its PR.
-const ALLOWED: readonly string[] = [];
+const ALLOWED: readonly string[] = [
+  // The JSON-LD vocabulary identifier for structured data; a name, not a link we serve.
+  "https://schema.org",
+];
 
 it("does not hard-code an absolute http(s) URL anywhere in src/ outside src/config", () => {
   const hits = findUrlLiterals(collectSourceFiles(srcRoot, EXCLUDES), ALLOWED).map((hit) => ({

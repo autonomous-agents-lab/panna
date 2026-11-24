@@ -1,19 +1,24 @@
 import { createServerClient } from "@supabase/ssr";
-import type { User } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getSupabaseConfig, hasSupabaseConfig } from "@/config";
 
 import type { Database } from "./database.types";
 
+/** The refreshed response, the verified user, and the client, so the proxy needs no second one. */
+export type SessionUpdate =
+  | { response: NextResponse; user: null; supabase: null }
+  | { response: NextResponse; user: User | null; supabase: SupabaseClient<Database> };
+
 /**
  * Refreshes the request's Supabase session in the proxy. Refreshed cookies go both onto the
  * request (so Server Components rendering it see them) and onto the response (so the browser
  * keeps them). Without Supabase config the request passes through as signed out.
  */
-export async function updateSession(request: NextRequest): Promise<{ response: NextResponse; user: User | null }> {
+export async function updateSession(request: NextRequest): Promise<SessionUpdate> {
   let response = NextResponse.next({ request });
-  if (!hasSupabaseConfig()) return { response, user: null };
+  if (!hasSupabaseConfig()) return { response, user: null, supabase: null };
 
   const { url, anonKey } = getSupabaseConfig();
   const supabase = createServerClient<Database>(url, anonKey, {
@@ -31,5 +36,5 @@ export async function updateSession(request: NextRequest): Promise<{ response: N
 
   // getUser() asks Supabase Auth, so a forged or revoked token never counts as signed in.
   const { data } = await supabase.auth.getUser();
-  return { response, user: data.user };
+  return { response, user: data.user, supabase };
 }

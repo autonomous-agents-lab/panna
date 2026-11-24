@@ -51,4 +51,8 @@ export const RESERVED_USERNAMES = [
   "support",
   "contact",
   "test-only",
+  "write",
 ] as const;
+
+/** How long the onboarding form waits after the last keystroke before asking whether a username is free. */
+export const USERNAME_CHECK_DEBOUNCE_MS = 400;

@@ -168,6 +168,10 @@ describe("tests run against a Deploy Preview (AC-3, AC-9)", () => {
     "sign-in with the keyboard › every control on /login",
     "Continue with Google goes to Supabase's Google flow",
     "with local Supabase › a magic link signs in",
+    "onboarding with local Supabase › a new user signs up, claims a username",
+    "onboarding with local Supabase › a name claimed by someone else",
+    "onboarding with local Supabase › the form works by keyboard alone",
+    "onboarding in Hindi with local Supabase › errors are shown inline in Hindi",
   ];
 
   it("leaves out only the tests that need /test-only/* routes, the in-memory store or Supabase, which still run locally", () => {
@@ -188,6 +192,8 @@ describe("tests run against a Deploy Preview (AC-3, AC-9)", () => {
     for (const name of [
       "protected pages › a signed-out visit to /settings goes to /login",
       "protected pages › a signed-out visit to /onboarding goes to /login",
+      "an unknown book in en-US (AC-7) › /no_such_writer_e2e is a localised 404",
+      "an unknown book in hi-IN (AC-7) › /not-a-username is a localised 404",
     ]) {
       expect(remote.some((line) => line.includes(name)), name).toBe(true);
     }

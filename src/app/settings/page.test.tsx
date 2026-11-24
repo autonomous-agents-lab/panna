@@ -14,11 +14,9 @@ vi.mock("@/i18n/server", () => ({
 }));
 
 const settings = await import("./page");
-const onboarding = await import("../onboarding/page");
 
 describe.each([
   { name: "settings", path: "/settings", titleKey: "settings.title", module: settings, signOut: true },
-  { name: "onboarding", path: "/onboarding", titleKey: "onboarding.title", module: onboarding, signOut: false },
 ] as const)("the $name placeholder (AC-4, AC-6)", ({ path, titleKey, module, signOut }) => {
   it.each(["en", "hi"] as const)("in %s, shows its heading and who is signed in", async (current) => {
     locale.current = current;

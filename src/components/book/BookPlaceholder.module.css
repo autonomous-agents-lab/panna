@@ -1,0 +1,51 @@
+/* Values come from the theme tokens. */
+
+.book {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 36rem;
+}
+
+.cover {
+  padding: var(--space-8) var(--space-6);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-paper-aged);
+}
+
+.title {
+  margin: 0;
+}
+
+.subtitle {
+  margin: var(--space-2) 0 0;
+  color: var(--color-ink-muted);
+}
+
+.writer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-12);
+  height: var(--space-12);
+  border-radius: var(--radius-full);
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: bold;
+}
+
+.byline,
+.bio,
+.note {
+  margin: 0;
+}
+
+.note {
+  color: var(--color-ink-muted);
+}

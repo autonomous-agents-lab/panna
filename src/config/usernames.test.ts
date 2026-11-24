@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import * as config from "./index";
-import { RESERVED_USERNAMES, USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "./usernames";
+import {
+  RESERVED_USERNAMES,
+  USERNAME_CHECK_DEBOUNCE_MS,
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+} from "./usernames";
 
 describe("username config", () => {
   it("has the card's length limits", () => {
@@ -34,8 +39,13 @@ describe("username config", () => {
         "_next",
         "static",
         "test-only",
+        "write",
       ]),
     );
+  });
+
+  it("waits 400 ms after typing before checking a username", () => {
+    expect(USERNAME_CHECK_DEBOUNCE_MS).toBe(400);
   });
 
   it("is exported from src/config", () => {
