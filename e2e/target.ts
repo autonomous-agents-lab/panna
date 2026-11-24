@@ -40,6 +40,11 @@ export type E2eTarget = {
   grepInvert?: RegExp;
   /** Requests to these domains (and their subdomains) come from the host, not the app. */
   hostToolingDomains: string[];
+  /**
+   * Whether the target serves /write on the stand-in store. Off on deploys, where /write is a 404
+   * (ENABLE_STAND_IN_WRITING defaults off in production and Netlify doesn't set it).
+   */
+  standInWriting: boolean;
 };
 
 /** Whether `url` belongs to host tooling rather than the app: off the site's origin, on a tooling domain. */
@@ -71,14 +76,19 @@ export function resolveTarget(env: Record<string, string | undefined>): E2eTarge
       baseURL: url.origin,
       grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${IN_MEMORY_STORE_TAG}|${LOCAL_SUPABASE_TAG}`),
       hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
+      standInWriting: false,
     };
   }
 
   const port = Number(env.E2E_PORT ?? 3100);
   const baseURL = `http://localhost:${port}`;
+  // E2E_STAND_IN_WRITING=false serves /write as a deploy does (a 404), to reproduce a preview run.
+  const standInWriting = env.E2E_STAND_IN_WRITING !== "false";
   return {
     baseURL,
     hostToolingDomains: [],
+    standInWriting,
+    ...(standInWriting ? {} : { grepInvert: new RegExp(IN_MEMORY_STORE_TAG) }),
     webServer: {
       // Always the production build: the dev error overlay traps focus on pages that throw, which
       // would hide what users really get from the error page (keyboard and axe checks).
@@ -91,7 +101,7 @@ export function resolveTarget(env: Record<string, string | undefined>): E2eTarge
         // dev server on another port (playwright.config.ts hands the tests the same value).
         NEXT_PUBLIC_SITE_URL: baseURL,
         // The production build serves /write on the stand-in store only when told to.
-        ENABLE_STAND_IN_WRITING: "true",
+        ENABLE_STAND_IN_WRITING: String(standInWriting),
         // The writing services check page image srcs against the Supabase URL, so /write needs the
         // Supabase config even on the stand-in. Without .env.local, use .env.example's local values;
         // nothing here connects to Supabase.

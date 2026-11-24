@@ -24,6 +24,7 @@ describe("resolveTarget (AC-3)", () => {
       baseURL: PREVIEW,
       grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${IN_MEMORY_STORE_TAG}|${LOCAL_SUPABASE_TAG}`),
       hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
+      standInWriting: false,
     });
     expect(target.grepInvert?.test("@test-routes")).toBe(true);
     expect(target.grepInvert?.test("the writing dashboard flow @in-memory-store")).toBe(true);
@@ -36,6 +37,7 @@ describe("resolveTarget (AC-3)", () => {
     expect(resolveTarget({ PLAYWRIGHT_BASE_URL: "", NEXT_PUBLIC_SITE_URL: "http://localhost:3000" })).toEqual({
       baseURL: "http://localhost:3100",
       hostToolingDomains: [],
+      standInWriting: true,
       webServer: {
         command: "npm run build && npm run start -- --port 3100",
         url: "http://localhost:3100",
@@ -49,6 +51,22 @@ describe("resolveTarget (AC-3)", () => {
       },
     });
     expect(resolveTarget({ E2E_PORT: "4000" }).webServer?.env.NEXT_PUBLIC_SITE_URL).toBe("http://localhost:4000");
+  });
+
+  it("with E2E_STAND_IN_WRITING=false, serves /write as a deploy does and leaves out the in-memory store tests", () => {
+    const target = resolveTarget({ E2E_STAND_IN_WRITING: "false" });
+    expect(target.standInWriting).toBe(false);
+    expect(target.webServer?.env.ENABLE_STAND_IN_WRITING).toBe("false");
+    expect(target.grepInvert?.test("the writing dashboard flow @in-memory-store")).toBe(true);
+    expect(target.grepInvert?.test("/write is noindex")).toBe(false);
+    expect(target.grepInvert?.test("@test-routes")).toBe(false);
+  });
+
+  it.each(["true", "", "yes"])("with E2E_STAND_IN_WRITING=%j, keeps stand-in writing on", (value) => {
+    const target = resolveTarget({ E2E_STAND_IN_WRITING: value });
+    expect(target.standInWriting).toBe(true);
+    expect(target.webServer?.env.ENABLE_STAND_IN_WRITING).toBe("true");
+    expect(target.grepInvert).toBeUndefined();
   });
 
   it("keeps Supabase values from the environment (e.g. .env.local), filling in only missing ones", () => {

@@ -4,7 +4,9 @@ import { en } from "../src/i18n/messages/en";
 import { hi } from "../src/i18n/messages/hi";
 
 import { expect, test } from "./fixtures";
-import { IN_MEMORY_STORE_TAG } from "./target";
+import { IN_MEMORY_STORE_TAG, resolveTarget } from "./target";
+
+const { standInWriting } = resolveTarget(process.env);
 
 /** Presses Tab until `target` has focus, as a keyboard-only user would. */
 async function tabTo(page: Page, target: Locator) {
@@ -17,11 +19,18 @@ async function tabTo(page: Page, target: Locator) {
 
 const chapterHeadings = (page: Page) => page.getByRole("main").getByRole("heading", { level: 2 });
 
-// Doesn't depend on stored data, so it also runs against Deploy Previews (where /write is a 404,
-// also noindex, unless the preview turns stand-in writing on).
+// Doesn't depend on stored data, so it also runs against Deploy Previews, where stand-in writing
+// is off and /write is a 404. Next adds its own robots noindex tag to a 404 on top of the page's
+// metadata one, so there every robots tag, not just one, must say noindex.
 test("/write is noindex", async ({ page }) => {
-  await page.goto("/write");
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  const response = await page.goto("/write");
+  expect(response?.status()).toBe(standInWriting ? 200 : 404);
+
+  const tags = page.locator('meta[name="robots"]');
+  await expect(tags.first()).toBeAttached();
+  for (const content of await tags.evaluateAll((elements) => elements.map((e) => e.getAttribute("content") ?? ""))) {
+    expect(content).toMatch(/noindex/);
+  }
 });
 
 // One server process, one in-memory book: these run in order on a fresh server, empty state
