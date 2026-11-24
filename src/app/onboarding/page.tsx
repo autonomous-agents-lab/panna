@@ -1,20 +1,26 @@
+import { redirect } from "next/navigation";
+
+import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
+import { ONBOARDING_PATH } from "@/contracts/onboarding";
 import { getTranslator } from "@/i18n/server";
 import { requireUser } from "@/lib/auth/session";
 import { pageMetadata } from "@/lib/page-metadata";
-
-const PATH = "/onboarding";
+import { getCurrentProfile } from "@/lib/profile/current-profile";
 
 export function generateMetadata() {
-  return pageMetadata({ path: PATH, titleKey: "onboarding.title", noindex: true });
+  return pageMetadata({ path: ONBOARDING_PATH, titleKey: "onboarding.title", noindex: true });
 }
 
-/** A placeholder for the onboarding stories: who is signed in. */
+/** Claim a username, a display name and a language; a user who already has a book goes to it. */
 export default async function OnboardingPage() {
-  const [{ t }, user] = await Promise.all([getTranslator(), requireUser(PATH)]);
+  const [{ locale, t }] = await Promise.all([getTranslator(), requireUser(ONBOARDING_PATH)]);
+  const profile = await getCurrentProfile();
+  if (profile) redirect(`/${profile.username}`);
   return (
     <>
       <h1>{t("onboarding.title")}</h1>
-      <p>{t("auth.signedInAs", { email: user.email ?? "" })}</p>
+      <p>{t("onboarding.intro")}</p>
+      <OnboardingForm defaultLanguage={locale} />
     </>
   );
 }

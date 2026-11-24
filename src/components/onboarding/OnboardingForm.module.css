@@ -1,0 +1,63 @@
+/* Values come from the theme tokens. Empty live regions take no space. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 32rem;
+}
+
+.field,
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.label {
+  padding: 0;
+  font-weight: bold;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-ink-muted);
+}
+
+.input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-ink-muted);
+  border-radius: var(--radius-md);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.input[aria-invalid="true"] {
+  border: 2px solid var(--color-error);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.message,
+.fieldError,
+.status {
+  margin: 0;
+}
+
+.available {
+  font-weight: bold;
+}
+
+.error {
+  color: var(--color-error);
+}

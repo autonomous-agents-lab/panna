@@ -5,6 +5,7 @@ import { loadConfig } from "../src/config/schema";
 import { en } from "../src/i18n/messages/en";
 import { hi } from "../src/i18n/messages/hi";
 
+import { completeOnboarding, uniqueEmail, uniqueUsername } from "./accounts";
 import { expect, test } from "./fixtures";
 import { firstLink, latestEmailTo } from "./mailpit";
 import { LOCAL_SUPABASE_TAG } from "./target";
@@ -137,8 +138,10 @@ test("Continue with Google goes to Supabase's Google flow with the callback buil
 test.describe("with local Supabase", { tag: LOCAL_SUPABASE_TAG }, () => {
   test.use({ locale: "en-US" });
 
-  test("a magic link signs in on the page asked for, and sign out returns home signed out", async ({ page }) => {
-    const address = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.org`;
+  test("a magic link signs in a new user to onboarding, then the page asked for, and sign out returns home signed out", async ({
+    page,
+  }) => {
+    const address = uniqueEmail();
 
     await page.goto("/settings");
     await expect(page).toHaveURL("/login?next=%2Fsettings");
@@ -151,6 +154,11 @@ test.describe("with local Supabase", { tag: LOCAL_SUPABASE_TAG }, () => {
     expect(email.html).toContain(appName);
 
     await page.goto(firstLink(email.html));
+    // A brand-new user has no profile yet, so sign-in lands on onboarding (BOOK-20) first.
+    await expect(page).toHaveURL("/onboarding");
+    await completeOnboarding(page, { username: uniqueUsername(), displayName: "E2E Writer" });
+
+    await page.goto("/settings");
     await expect(page).toHaveURL("/settings");
     await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toHaveText(en["settings.title"]);
     await expect(page.getByRole("main")).toContainText(en["auth.signedInAs"].replace("{email}", address));

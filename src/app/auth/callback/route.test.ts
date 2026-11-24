@@ -2,8 +2,11 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const exchangeCodeForSession = vi.hoisted(() => vi.fn());
-const createSupabaseServerClient = vi.hoisted(() => vi.fn(async () => ({ auth: { exchangeCodeForSession } })));
+const supabase = vi.hoisted(() => ({ auth: { exchangeCodeForSession } }));
+const createSupabaseServerClient = vi.hoisted(() => vi.fn(async () => supabase));
+const findProfileUsername = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/server", () => ({ createSupabaseServerClient }));
+vi.mock("@/lib/profile/lookup", () => ({ findProfileUsername }));
 
 const { GET } = await import("./route");
 
@@ -18,7 +21,8 @@ async function callback(query: string) {
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon");
-  exchangeCodeForSession.mockResolvedValue({ data: {}, error: null });
+  exchangeCodeForSession.mockResolvedValue({ data: { user: { id: "u1" }, session: {} }, error: null });
+  findProfileUsername.mockResolvedValue("asha");
 });
 
 afterEach(() => {
@@ -42,6 +46,23 @@ describe("GET /auth/callback (AC-2)", () => {
       expect(await callback(`?code=abc&next=${next}`)).toBe(`${ORIGIN}/`);
     },
   );
+});
+
+describe("GET /auth/callback onboarding (BOOK-20 AC-1)", () => {
+  it("sends a user with no profile yet to /onboarding, whatever next asked for", async () => {
+    findProfileUsername.mockResolvedValue(null);
+    expect(await callback("?code=abc&next=%2Fsettings")).toBe(`${ORIGIN}/onboarding`);
+    expect(findProfileUsername).toHaveBeenCalledExactlyOnceWith(supabase, "u1");
+  });
+
+  it("continues to next for a user who already has a profile", async () => {
+    expect(await callback("?code=abc&next=%2Fsettings")).toBe(`${ORIGIN}/settings`);
+  });
+
+  it("continues to next when the profile lookup fails, so the proxy decides there", async () => {
+    findProfileUsername.mockRejectedValue(new Error("Profile lookup failed (57014)"));
+    expect(await callback("?code=abc&next=%2Fsettings")).toBe(`${ORIGIN}/settings`);
+  });
 });
 
 describe("GET /auth/callback failures (AC-8)", () => {
