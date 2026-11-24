@@ -2,6 +2,21 @@
 export const TEST_ROUTES_TAG = "@test-routes";
 
 /**
+ * Tests that write to the stand-in in-memory store and read it back. A deploy's function
+ * instances don't share that memory, so remote runs skip them until the Supabase data source lands.
+ */
+export const IN_MEMORY_STORE_TAG = "@in-memory-store";
+
+/**
+ * The local Supabase values .env.example documents (the anon key is its placeholder). Copied from
+ * there; tests/repo/e2e-target.test.ts fails if the two drift apart.
+ */
+export const LOCAL_SUPABASE = {
+  url: "http://127.0.0.1:54321",
+  anonKey: "replace-with-anon-key-from-supabase-status",
+};
+
+/**
  * Tests that need Supabase: the sign-in form, Google's authorize step, the code exchange and the
  * mail inbox (Mailpit). For now, by the owner's decision on BOOK-17, the database is local only
  * (see "No hosted project, for now" in the README), so deploys have no Supabase values and /login
@@ -25,6 +40,11 @@ export type E2eTarget = {
   grepInvert?: RegExp;
   /** Requests to these domains (and their subdomains) come from the host, not the app. */
   hostToolingDomains: string[];
+  /**
+   * Whether the target serves /write on the stand-in store. Off on deploys, where /write is a 404
+   * (ENABLE_STAND_IN_WRITING defaults off in production and Netlify doesn't set it).
+   */
+  standInWriting: boolean;
 };
 
 /** Whether `url` belongs to host tooling rather than the app: off the site's origin, on a tooling domain. */
@@ -54,25 +74,40 @@ export function resolveTarget(env: Record<string, string | undefined>): E2eTarge
     }
     return {
       baseURL: url.origin,
-      grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${LOCAL_SUPABASE_TAG}`),
+      grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${IN_MEMORY_STORE_TAG}|${LOCAL_SUPABASE_TAG}`),
       hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
+      standInWriting: false,
     };
   }
 
   const port = Number(env.E2E_PORT ?? 3100);
   const baseURL = `http://localhost:${port}`;
+  // E2E_STAND_IN_WRITING=false serves /write as a deploy does (a 404), to reproduce a preview run.
+  const standInWriting = env.E2E_STAND_IN_WRITING !== "false";
   return {
     baseURL,
     hostToolingDomains: [],
+    standInWriting,
+    ...(standInWriting ? {} : { grepInvert: new RegExp(IN_MEMORY_STORE_TAG) }),
     webServer: {
       // Always the production build: the dev error overlay traps focus on pages that throw, which
       // would hide what users really get from the error page (keyboard and axe checks).
       command: `npm run build && npm run start -- --port ${port}`,
       url: baseURL,
-      // Turns on /test-only/* (a route that throws, for the error page tests). Never set in Netlify.
-      // The site URL is the server under test, so auth links come back to it rather than to a
-      // dev server on another port (playwright.config.ts hands the tests the same value).
-      env: { ENABLE_TEST_ROUTES: "true", NEXT_PUBLIC_SITE_URL: baseURL },
+      env: {
+        // Turns on /test-only/* (a route that throws, for the error page tests). Never set in Netlify.
+        ENABLE_TEST_ROUTES: "true",
+        // The site URL is the server under test, so auth links come back to it rather than to a
+        // dev server on another port (playwright.config.ts hands the tests the same value).
+        NEXT_PUBLIC_SITE_URL: baseURL,
+        // The production build serves /write on the stand-in store only when told to.
+        ENABLE_STAND_IN_WRITING: String(standInWriting),
+        // The writing services check page image srcs against the Supabase URL, so /write needs the
+        // Supabase config even on the stand-in. Without .env.local, use .env.example's local values;
+        // nothing here connects to Supabase.
+        NEXT_PUBLIC_SUPABASE_URL: env.NEXT_PUBLIC_SUPABASE_URL || LOCAL_SUPABASE.url,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: env.NEXT_PUBLIC_SUPABASE_ANON_KEY || LOCAL_SUPABASE.anonKey,
+      },
     },
   };
 }

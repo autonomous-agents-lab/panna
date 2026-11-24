@@ -15,6 +15,9 @@ describe("default token pairs meet WCAG AA", () => {
     ["inkMuted", "paperShade", color.inkMuted, color.paperShade],
     ["onAccent", "accent", color.onAccent, color.accent],
     ["error", "paper", color.error, color.paper],
+    ["ink", "statusDraft", color.ink, color.statusDraft],
+    ["ink", "statusPublished", color.ink, color.statusPublished],
+    ["ink", "statusArchived", color.ink, color.statusArchived],
   ])("%s text on %s is at least 4.5:1", (_, __, text, background) => {
     expect(contrastRatio(text, background)).toBeGreaterThanOrEqual(4.5);
   });

@@ -30,6 +30,8 @@ describe("theme tokens", () => {
     expect(theme.font.devanagari.startsWith("var(--font-face-devanagari,")).toBe(true);
     expect(theme.font.latin.startsWith("var(--font-face-latin,")).toBe(true);
     expect(theme.font.latin).toContain("var(--font-face-devanagari,");
+    // Mixed-script titles marked lang="hi" still render their Latin letters in the Latin UI face.
+    expect(theme.font.devanagari).toContain("var(--font-face-latin,");
   });
 
   it("does not use flat white for any paper tone", () => {

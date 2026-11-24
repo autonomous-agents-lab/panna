@@ -32,7 +32,7 @@ npx playwright install chromium
 | `npm run dev`      | Start the app locally at http://localhost:3000                       |
 | `npm test`         | Typecheck (`tsc --noEmit`), lint (ESLint), then unit tests (Vitest)  |
 | `npm run test:coverage` | Unit tests with coverage; fails below the thresholds in `vitest.config.ts` (100% for the page body sanitiser and renderer) |
-| `npm run test:e2e` | Playwright end-to-end tests, including axe accessibility checks; builds and starts the production app itself on port 3100 (`E2E_PORT` to change) |
+| `npm run test:e2e` | Playwright end-to-end tests, including axe accessibility checks; builds and starts the production app itself on port 3100 (`E2E_PORT` to change; `E2E_STAND_IN_WRITING=false` serves /write as a deploy does, a 404) |
 | `npm run build`    | Production build                                                     |
 | `npm run start`    | Serve the production build                                           |
 | `npm run test:db`  | pgTAP policy tests in `supabase/tests` against the local Supabase stack |

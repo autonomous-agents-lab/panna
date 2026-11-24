@@ -9,13 +9,40 @@ import { loadServerConfig } from "./server";
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 
 describe("loadServerConfig", () => {
-  it("falls back to the package version and keeps test routes off when nothing is set", () => {
+  it("falls back to the package version and keeps test routes and stand-in writing off when nothing is set", () => {
     expect(loadServerConfig({})).toEqual({
       version: packageJson.version,
       testRoutes: false,
       writingDataSource: "stand-in",
+      standInWriting: false,
     });
   });
+
+  it.each([
+    ["production", false],
+    ["development", true],
+    ["test", true],
+    [undefined, false],
+  ])("with ENABLE_STAND_IN_WRITING unset and NODE_ENV=%j, serves stand-in writing: %s", (nodeEnv, expected) => {
+    expect(loadServerConfig({ NODE_ENV: nodeEnv }).standInWriting).toBe(expected);
+  });
+
+  it.each([
+    ["true", "production", true],
+    ["false", "development", false],
+    ["false", "test", false],
+  ])("ENABLE_STAND_IN_WRITING=%s wins over NODE_ENV=%s", (value, nodeEnv, expected) => {
+    expect(loadServerConfig({ ENABLE_STAND_IN_WRITING: value, NODE_ENV: nodeEnv }).standInWriting).toBe(expected);
+  });
+
+  it.each(["", "TRUE", "1", "yes", "secret-token-value"])(
+    "throws an error naming ENABLE_STAND_IN_WRITING, without echoing it, for %j",
+    (value) => {
+      expect(() => loadServerConfig({ ENABLE_STAND_IN_WRITING: value })).toThrow(
+        /^ENABLE_STAND_IN_WRITING must be true or false$/,
+      );
+    },
+  );
 
   it("uses the stand-in writing data source when WRITING_DATA_SOURCE says so", () => {
     expect(loadServerConfig({ WRITING_DATA_SOURCE: "stand-in" }).writingDataSource).toBe("stand-in");
@@ -71,11 +98,28 @@ describe("serverConfig", () => {
     vi.stubEnv("APP_VERSION", "abcdef1");
     vi.stubEnv("ENABLE_TEST_ROUTES", "true");
     vi.stubEnv("WRITING_DATA_SOURCE", "stand-in");
+    vi.stubEnv("ENABLE_STAND_IN_WRITING", "false");
     vi.resetModules();
 
     const { serverConfig } = await import("./server");
 
-    expect(serverConfig).toEqual({ version: "abcdef1", testRoutes: true, writingDataSource: "stand-in" });
+    expect(serverConfig).toEqual({
+      version: "abcdef1",
+      testRoutes: true,
+      writingDataSource: "stand-in",
+      standInWriting: false,
+    });
+  });
+
+  it("serves stand-in writing by default under NODE_ENV=production only when turned on", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ENABLE_STAND_IN_WRITING", undefined);
+    vi.resetModules();
+    expect((await import("./server")).serverConfig.standInWriting).toBe(false);
+
+    vi.stubEnv("ENABLE_STAND_IN_WRITING", "true");
+    vi.resetModules();
+    expect((await import("./server")).serverConfig.standInWriting).toBe(true);
   });
 
   it("never reads the host's SHA variables, so the package version applies without APP_VERSION", async () => {

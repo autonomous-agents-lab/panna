@@ -8,6 +8,8 @@ const WCAG_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 const PAGES = [
   { name: "home", path: "/" },
   { name: "404", path: "/this/does/not/exist" },
+  // A 404 on Deploy Previews unless they turn stand-in writing on.
+  { name: "writing dashboard", path: "/write" },
   { name: "error", path: "/test-only/throw", tag: TEST_ROUTES_TAG },
 ];
 
