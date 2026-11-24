@@ -7,6 +7,7 @@ import {
   IN_MEMORY_STORE_TAG,
   isHostTooling,
   LOCAL_SUPABASE,
+  LOCAL_SUPABASE_TAG,
   PREVIEW_TOOLBAR_DOMAINS,
   resolveTarget,
   TEST_ROUTES_TAG,
@@ -16,21 +17,23 @@ const repoRoot = join(import.meta.dirname, "..", "..");
 const PREVIEW = "https://deploy-preview-7--panna-book.netlify.app";
 
 describe("resolveTarget (AC-3)", () => {
-  it("points at a deployed site when PLAYWRIGHT_BASE_URL is set, starting no server and leaving out test-route and in-memory store tests", () => {
+  it("points at a deployed site when PLAYWRIGHT_BASE_URL is set, starting no server and leaving out test-route, in-memory store and local-Supabase tests", () => {
     const target = resolveTarget({ PLAYWRIGHT_BASE_URL: `${PREVIEW}/`, E2E_PORT: "4000" });
 
     expect(target).toEqual({
       baseURL: PREVIEW,
-      grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${IN_MEMORY_STORE_TAG}`),
+      grepInvert: new RegExp(`${TEST_ROUTES_TAG}|${IN_MEMORY_STORE_TAG}|${LOCAL_SUPABASE_TAG}`),
       hostToolingDomains: PREVIEW_TOOLBAR_DOMAINS,
     });
     expect(target.grepInvert?.test("@test-routes")).toBe(true);
     expect(target.grepInvert?.test("the writing dashboard flow @in-memory-store")).toBe(true);
+    expect(target.grepInvert?.test("@local-supabase")).toBe(true);
     expect(target.grepInvert?.test("/write is noindex")).toBe(false);
+    expect(target.grepInvert?.test("sign-in in en-US")).toBe(false);
   });
 
-  it("otherwise builds and starts the app itself, with test routes and stand-in writing on", () => {
-    expect(resolveTarget({ PLAYWRIGHT_BASE_URL: "" })).toEqual({
+  it("otherwise builds and starts the app itself, with test routes and stand-in writing on and auth links back to it", () => {
+    expect(resolveTarget({ PLAYWRIGHT_BASE_URL: "", NEXT_PUBLIC_SITE_URL: "http://localhost:3000" })).toEqual({
       baseURL: "http://localhost:3100",
       hostToolingDomains: [],
       webServer: {
@@ -38,13 +41,14 @@ describe("resolveTarget (AC-3)", () => {
         url: "http://localhost:3100",
         env: {
           ENABLE_TEST_ROUTES: "true",
+          NEXT_PUBLIC_SITE_URL: "http://localhost:3100",
           ENABLE_STAND_IN_WRITING: "true",
           NEXT_PUBLIC_SUPABASE_URL: LOCAL_SUPABASE.url,
           NEXT_PUBLIC_SUPABASE_ANON_KEY: LOCAL_SUPABASE.anonKey,
         },
       },
     });
-    expect(resolveTarget({ E2E_PORT: "4000" }).webServer?.url).toBe("http://localhost:4000");
+    expect(resolveTarget({ E2E_PORT: "4000" }).webServer?.env.NEXT_PUBLIC_SITE_URL).toBe("http://localhost:4000");
   });
 
   it("keeps Supabase values from the environment (e.g. .env.local), filling in only missing ones", () => {
@@ -134,11 +138,41 @@ describe("tests run against a Deploy Preview (AC-3, AC-9)", () => {
     expect(remote.some((line) => line.includes("/api/health reports ok"))).toBe(true);
   });
 
-  it("leaves out only the tests that need /test-only/* routes or the in-memory store, which still run locally", () => {
+  const localOnly =
+    /error page|\/test-only\/|writing dashboard flow|with local Supabase|sign-in in |sign-in with the keyboard|Continue with Google/;
+  const needsSupabase = [
+    "sign-in in en-US › /login is a translated, noindex page",
+    "sign-in in en-US › an invalid email shows an inline, labelled error",
+    "sign-in in en-US › a failed or expired link lands on /login",
+    "sign-in in hi-IN › /login is a translated, noindex page",
+    "sign-in in hi-IN › an invalid email shows an inline, labelled error",
+    "sign-in in hi-IN › a failed or expired link lands on /login",
+    "sign-in with the keyboard › every control on /login",
+    "Continue with Google goes to Supabase's Google flow",
+    "with local Supabase › a magic link signs in",
+  ];
+
+  it("leaves out only the tests that need /test-only/* routes, the in-memory store or Supabase, which still run locally", () => {
     const left = local.filter((line) => !remote.includes(line));
     expect(left.length).toBeGreaterThan(0);
-    for (const line of left) expect(line).toMatch(/error page|\/test-only\/|writing dashboard flow/);
-    expect(remote.some((line) => /error page|\/test-only\/|writing dashboard flow/.test(line))).toBe(false);
+    for (const line of left) expect(line).toMatch(localOnly);
+    expect(remote.some((line) => localOnly.test(line))).toBe(false);
+  });
+
+  it("runs every sign-in test locally but not against the preview, which has no Supabase on purpose (BOOK-17)", () => {
+    for (const name of needsSupabase) {
+      expect(local.some((line) => line.includes(name)), `local: ${name}`).toBe(true);
+      expect(remote.some((line) => line.includes(name)), `remote: ${name}`).toBe(false);
+    }
+  });
+
+  it("still checks the protected-page redirects against the preview, since they need no Supabase (BOOK-17)", () => {
+    for (const name of [
+      "protected pages › a signed-out visit to /settings goes to /login",
+      "protected pages › a signed-out visit to /onboarding goes to /login",
+    ]) {
+      expect(remote.some((line) => line.includes(name)), name).toBe(true);
+    }
   });
 
   it("still checks /write for noindex and axe violations against a Deploy Preview", () => {

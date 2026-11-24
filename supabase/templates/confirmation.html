@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panna</title>
+</head>
+<body style="margin: 0; padding: 24px; font-family: Georgia, 'Noto Serif Devanagari', serif; line-height: 1.6;">
+  <div lang="en">
+    <h1 style="font-size: 1.25rem;">Welcome to Panna</h1>
+    <p>Confirm your email to finish signing in. Open this link in the same browser where you asked for it. It works once and expires soon.</p>
+  </div>
+  <div lang="hi">
+    <h1 style="font-size: 1.25rem;">Panna में आपका स्वागत है</h1>
+    <p>साइन इन पूरा करने के लिए अपना ईमेल पक्का करें। यह लिंक उसी ब्राउज़र में खोलें जिसमें आपने इसे माँगा था। यह एक ही बार काम करता है और जल्द ही ख़त्म हो जाता है।</p>
+  </div>
+  <p>
+    <a href="{{ .ConfirmationURL }}" style="display: inline-block; padding: 12px 20px; border: 2px solid currentColor; border-radius: 8px; font-weight: bold; text-decoration: none;"><span lang="en">Confirm and sign in</span> · <span lang="hi">पक्का करें और साइन इन करें</span></a>
+  </p>
+  <p lang="en">If you didn’t ask for this, you can ignore this email.</p>
+  <p lang="hi">अगर आपने यह नहीं माँगा था, तो इस ईमेल को अनदेखा कर दें।</p>
+</body>
+</html>

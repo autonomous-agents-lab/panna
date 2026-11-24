@@ -19,7 +19,8 @@
     "test:e2e": "playwright test",
     "test:db": "supabase test db",
     "test:build": "next build && vitest run --config vitest.build.config.ts",
-    "db:types": "supabase gen types typescript --local > src/lib/supabase/database.types.ts"
+    "db:types": "supabase gen types typescript --local > src/lib/supabase/database.types.ts",
+    "auth:emails": "node scripts/render-auth-emails.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

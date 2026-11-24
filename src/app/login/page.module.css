@@ -1,0 +1,14 @@
+.login {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.title {
+  margin: 0 0 var(--space-4);
+}
+
+.intro {
+  margin: 0 0 var(--space-6);
+}

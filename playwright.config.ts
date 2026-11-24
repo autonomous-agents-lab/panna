@@ -8,6 +8,9 @@ nextEnv.loadEnvConfig(process.cwd(), !process.env.CI);
 
 const { baseURL, webServer, grepInvert } = resolveTarget(process.env);
 
+// The tests read config from process.env, so they must expect the site URL the server got.
+if (webServer) process.env.NEXT_PUBLIC_SITE_URL = baseURL;
+
 export default defineConfig({
   testDir: "e2e",
   forbidOnly: !!process.env.CI,

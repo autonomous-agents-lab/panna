@@ -161,11 +161,14 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+# localhost, not 127.0.0.1, so the app's session and PKCE cookies sit on the host the app runs on.
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# A list of URLs (globs allowed) that auth providers are permitted to redirect to post
+# authentication: the auth callback of `npm run dev` (3000) and of the e2e server (3100), with
+# any `?next=` query.
+additional_redirect_urls = ["http://localhost:3000/auth/callback**", "http://localhost:3100/auth/callback**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -257,6 +260,16 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# Generated from NEXT_PUBLIC_APP_NAME by `npm run auth:emails`, which rewrites these subjects and
+# the HTML files; don't edit them by hand. Each section must start with its subject line.
+[auth.email.template.magic_link]
+subject = "Your Panna sign-in link · आपका Panna साइन-इन लिंक"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.confirmation]
+subject = "Confirm your email for Panna · Panna के लिए अपना ईमेल पक्का करें"
+content_path = "./supabase/templates/confirmation.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true
@@ -343,6 +356,19 @@ url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
 skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
+email_optional = false
+
+# Google sign-in. The credentials come from the environment of whoever runs the Supabase CLI and
+# are never committed; unset, the CLI keeps the env(...) text as a placeholder, so the stack still
+# starts but real Google sign-in won't (see "Auth locally" in the README).
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+# Required for local sign in with Google auth.
+skip_nonce_check = true
 email_optional = false
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS) standard.

@@ -81,11 +81,29 @@ jobs:
       # next build, then the check that client bundles carry only the public Supabase variables.
       - run: npm run test:build
 
+  # Runs against a local Supabase, so the tests that need it (@local-supabase) run here, magic links
+  # read from Mailpit included. e2e-preview skips them: deploys have no Supabase on purpose.
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # Placeholders for env() in supabase/config.toml; real Google sign-in isn't tested here.
+      SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID: placeholder-google-client-id
+      SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: placeholder-google-secret
     steps:
       - uses: actions/checkout@v5.0.0
+      - uses: supabase/setup-cli@v1.5.0
+        with:
+          version: 3.2.0
+      # Only Postgres, Auth, the API gateway, PostgREST and Mailpit: what sign-in needs.
+      - run: supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,realtime,postgres-meta,supavisor
+      # Hands the app the local URL and anon key (public by design); nothing else from status.
+      - run: >-
+          supabase status -o env
+          --override-name api.url=NEXT_PUBLIC_SUPABASE_URL
+          --override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY
+          | grep -E '^NEXT_PUBLIC_SUPABASE_(URL|ANON_KEY)='
+          | tr -d '"' >> "$GITHUB_ENV"
       - uses: actions/setup-node@v5.0.0
         with:
           node-version-file: .nvmrc
@@ -166,6 +184,10 @@ jobs:
   db:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # Placeholders for env() in supabase/config.toml, which turns Google sign-in on.
+      SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID: placeholder-google-client-id
+      SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: placeholder-google-secret
     steps:
       - uses: actions/checkout@v5.0.0
       # Same version as the supabase devDependency, so CI and local runs use the same CLI.
