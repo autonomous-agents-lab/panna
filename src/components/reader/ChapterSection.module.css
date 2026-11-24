@@ -1,0 +1,7 @@
+.chapter {
+  padding-top: var(--space-8);
+}
+
+.title {
+  margin: 0;
+}

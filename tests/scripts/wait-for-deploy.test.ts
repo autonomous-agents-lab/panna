@@ -16,17 +16,21 @@ type Reply = Response | { throws: unknown };
 const health = (version: string) => Response.json({ status: "ok", version, time: new Date(0).toISOString() });
 const status = (code: number) => new Response("", { status: code });
 
+/** The next reply from a queue whose last entry repeats. */
+const next = <T>(queue: T[]): T | undefined => (queue.length > 1 ? queue.shift() : queue[0]);
+
 /**
  * A fake clock and deploy. /api/health answers with `replies` in order, the last one repeating;
- * other paths answer with the status in `pages`, 200 by default.
+ * other paths answer with the statuses in `pages` in the same way, 200 by default.
  */
-function fakeDeploy(replies: Reply[], pages: Record<string, number> = {}) {
+function fakeDeploy(replies: Reply[], pages: Record<string, number[]> = {}) {
   let time = 0;
   const queue = [...replies];
+  const pageQueues = Object.fromEntries(Object.entries(pages).map(([path, codes]) => [path, [...codes]]));
   const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {
     const path = new URL(url).pathname;
-    if (path !== "/api/health") return status(pages[path] ?? 200);
-    const reply = queue.length > 1 ? queue.shift() : queue[0];
+    if (path !== "/api/health") return status(next(pageQueues[path] ?? []) ?? 200);
+    const reply = next(queue);
     if (!(reply instanceof Response)) throw reply?.throws;
     return reply.clone();
   });
@@ -34,8 +38,26 @@ function fakeDeploy(replies: Reply[], pages: Record<string, number> = {}) {
   const sleep = vi.fn(async (ms: number) => {
     time += ms;
   });
-  return { fetch, now, sleep, options: { fetch, now, sleep } };
+  const warn = vi.fn<(message: string) => void>();
+  return { fetch, now, sleep, warn, options: { fetch, now, sleep, warn } };
 }
+
+/** The deploy above, with one key page answering `reply` once and 200 after that. */
+function deployWithKeyPage(path: string, reply: () => Response) {
+  const deploy = fakeDeploy([health(SHA)]);
+  let answered = false;
+  deploy.fetch.mockImplementation(async (url) => {
+    if (new URL(url).pathname === "/api/health") return health(SHA);
+    if (new URL(url).pathname !== path || answered) return status(200);
+    answered = true;
+    return reply();
+  });
+  return deploy;
+}
+
+const APP_NOT_FOUND_HTML =
+  '<!DOCTYPE html><html lang="en"><head><script src="/_next/static/chunks/main.js" async=""></script></head>' +
+  "<body><h1>Page not found</h1></body></html>";
 
 describe("waitForDeploy", () => {
   it("returns once /api/health reports the expected version and the key pages answer 200", async () => {
@@ -91,12 +113,143 @@ describe("waitForDeploy", () => {
     expect(deploy.sleep.mock.calls.map(([ms]) => ms)).toEqual([3 * MINUTE, 3 * MINUTE, 2 * MINUTE]);
   });
 
-  it("fails when a key page doesn't answer 200 on the expected version", async () => {
-    const deploy = fakeDeploy([health(SHA)], { "/": 500 });
+  it("keeps polling while /api/health, checked as a key page, briefly answers 404 after reporting the expected version", async () => {
+    // What a just-published Netlify deploy did: the right version, then a 404 on /api/health.
+    const deploy = fakeDeploy([health(SHA), status(404), health(SHA)]);
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.sleep.mock.calls.map(([ms]) => ms)).toEqual([5_000]);
+    expect(deploy.warn).toHaveBeenCalledOnce();
+    expect(deploy.warn).toHaveBeenCalledWith(
+      `::warning::${BASE}/api/health answered HTTP 404 (content-type: text/plain;charset=UTF-8, cache-status: none, ` +
+        "request id: none, app not-found page: no).",
+    );
+    expect(deploy.fetch.mock.calls.map(([url]) => url)).toEqual([
+      `${BASE}/api/health`,
+      `${BASE}/`,
+      `${BASE}/api/health`,
+      `${BASE}/api/health`,
+      `${BASE}/`,
+      `${BASE}/api/health`,
+    ]);
+  });
+
+  it("warns with the app's not-found page, its content type, cache status and request id", async () => {
+    const deploy = deployWithKeyPage(
+      "/",
+      () =>
+        new Response(APP_NOT_FOUND_HTML, {
+          status: 404,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-status": '"Netlify Edge"; fwd=miss',
+            "x-nf-request-id": "01ABC",
+            "x-request-id": "ignored",
+          },
+        }),
+    );
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.warn).toHaveBeenCalledExactlyOnceWith(
+      `::warning::${BASE}/ answered HTTP 404 (content-type: text/html; charset=utf-8, ` +
+        `cache-status: "Netlify Edge"; fwd=miss, request id: 01ABC, app not-found page: yes).`,
+    );
+  });
+
+  it("tells a host's HTML 404 apart from the app's", async () => {
+    const deploy = deployWithKeyPage(
+      "/",
+      () => new Response("<html><body>Not Found</body></html>", { status: 404, headers: { "content-type": "text/html" } }),
+    );
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.warn).toHaveBeenCalledWith(expect.stringContaining("app not-found page: no)."));
+  });
+
+  it.each([
+    ["an app error page", () => new Response(APP_NOT_FOUND_HTML, { status: 500, headers: { "content-type": "text/html" } }), "app page: yes"],
+    [
+      "a body that fails to read",
+      () =>
+        new Response(new ReadableStream({ start: (controller) => controller.error(new Error("reset")) }), {
+          status: 502,
+          headers: { "content-type": "text/html", "x-request-id": "req-9" },
+        }),
+      "request id: req-9, app page: no",
+    ],
+  ])("warns about %s answered on a key page", async (_case, reply, expected) => {
+    const deploy = deployWithKeyPage("/", reply);
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.warn).toHaveBeenCalledWith(expect.stringMatching(/^::warning::.* answered HTTP 5\d\d /));
+    expect(deploy.warn).toHaveBeenCalledWith(expect.stringContaining(`${expected}).`));
+  });
+
+  it("doesn't warn when every key page answers 200", async () => {
+    const deploy = fakeDeploy([health(SHA)]);
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, ...deploy.options });
+
+    expect(deploy.warn).not.toHaveBeenCalled();
+  });
+
+  it("fails when a key page keeps answering other than 200 on the expected version until the deadline", async () => {
+    const deploy = fakeDeploy([health(SHA)], { "/": [500] });
+
+    const waiting = waitForDeploy({
+      baseUrl: BASE,
+      expectedVersion: SHA,
+      timeoutMs: 8 * MINUTE,
+      intervalMs: 3 * MINUTE,
+      ...deploy.options,
+    });
+
+    await expect(waiting).rejects.toThrow(
+      `${BASE} serves ${SHA}, but its key pages did not all answer 200 within 8 minutes ` +
+        `(last seen: ${BASE}/ answered HTTP 500).`,
+    );
+    expect(deploy.sleep.mock.calls.map(([ms]) => ms)).toEqual([3 * MINUTE, 3 * MINUTE, 2 * MINUTE]);
+  });
+
+  it("reports a network error on a key page as the last thing seen", async () => {
+    const deploy = fakeDeploy([health(SHA)]);
+    deploy.fetch.mockImplementation(async (url) => {
+      if (new URL(url).pathname === "/") throw new Error("socket hang up");
+      return health(SHA);
+    });
 
     await expect(
-      waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, ...deploy.options }),
-    ).rejects.toThrow(`${BASE}/ answered HTTP 500 on version ${SHA}; expected 200.`);
+      waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: MINUTE, ...deploy.options }),
+    ).rejects.toThrow(
+      `but its key pages did not all answer 200 within 1 minutes (last seen: ${BASE}/ failed (network error: socket hang up))`,
+    );
+  });
+
+  it("warns about a key page whose request fails once, then passes when it answers 200", async () => {
+    const deploy = deployWithKeyPage("/", () => {
+      throw new Error("The operation was aborted due to timeout");
+    });
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.sleep.mock.calls.map(([ms]) => ms)).toEqual([5_000]);
+    expect(deploy.warn).toHaveBeenCalledExactlyOnceWith(
+      `::warning::${BASE}/ failed (network error: The operation was aborted due to timeout)`,
+    );
+  });
+
+  it("describes a non-Error rejection on a key page as text", async () => {
+    const deploy = deployWithKeyPage("/", () => {
+      throw "reset";
+    });
+
+    await waitForDeploy({ baseUrl: BASE, expectedVersion: SHA, timeoutMs: MINUTE, intervalMs: 5_000, ...deploy.options });
+
+    expect(deploy.warn).toHaveBeenCalledExactlyOnceWith(`::warning::${BASE}/ failed (network error: reset)`);
   });
 
   it("checks only the paths it is given", async () => {
@@ -149,6 +302,14 @@ describe("main (the CLI)", () => {
     expect(await main(env, log, deploy.options)).toBe(0);
     expect(log.error).not.toHaveBeenCalled();
     expect(log.log).toHaveBeenLastCalledWith(expect.stringContaining(`serves ${SHA}`));
+  });
+
+  it("logs each key-page warning as a GitHub warning annotation", async () => {
+    const log = logger();
+    const { fetch, now, sleep } = deployWithKeyPage("/", () => status(404));
+
+    expect(await main(env, log, { fetch, now, sleep })).toBe(0);
+    expect(log.log).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^::warning::${BASE}/ answered HTTP 404 `)));
   });
 
   it("exits 1 with a GitHub error annotation when the deploy never becomes ready", async () => {

@@ -8,6 +8,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const COMMIT_SHA = /^[0-9a-f]{7,40}$/i;
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const errorMessage = (error) => (error instanceof Error ? error.message : String(error));
 
 async function get(fetchImpl, url) {
   return fetchImpl(url, { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
@@ -29,38 +30,85 @@ export async function waitForDeploy({
   fetch: fetchImpl = globalThis.fetch,
   now = Date.now,
   sleep = defaultSleep,
+  warn = console.warn,
 }) {
   const healthUrl = new URL("/api/health", baseUrl).href;
   const startedAt = now();
   let lastSeen = "no response yet";
+  // Whether /api/health reported the expected version on the latest attempt.
+  let live = false;
 
   for (;;) {
+    live = false;
     try {
       const { version, seen } = await describeHealth(await get(fetchImpl, healthUrl));
-      if (version === expectedVersion) break;
       lastSeen = seen;
+      live = version === expectedVersion;
+      // Key pages are polled to the same deadline as the version; each non-200 answer or failed
+      // request is warned about so its source can be identified.
+      if (live) {
+        lastSeen = await firstPageNotOk(fetchImpl, baseUrl, checkPaths, warn);
+        if (!lastSeen) return;
+      }
     } catch (error) {
-      lastSeen = `network error (${error instanceof Error ? error.message : String(error)})`;
+      lastSeen = `network error (${errorMessage(error)})`;
     }
 
     const elapsed = now() - startedAt;
     if (elapsed >= timeoutMs) {
+      const minutes = timeoutMs / MINUTE_MS;
       throw new Error(
-        `${healthUrl} did not report version ${expectedVersion} within ${timeoutMs / MINUTE_MS} minutes ` +
-          `(last seen: ${lastSeen}). The deploy failed, is still building or is queued behind another ` +
-          "build: check it in Netlify, then re-run this job.",
+        live
+          ? `${baseUrl} serves ${expectedVersion}, but its key pages did not all answer 200 within ${minutes} ` +
+              `minutes (last seen: ${lastSeen}).`
+          : `${healthUrl} did not report version ${expectedVersion} within ${minutes} minutes ` +
+              `(last seen: ${lastSeen}). The deploy failed, is still building or is queued behind another ` +
+              "build: check it in Netlify, then re-run this job.",
       );
     }
     await sleep(Math.min(intervalMs, timeoutMs - elapsed));
   }
+}
 
-  for (const path of checkPaths) {
+/**
+ * The first key page that doesn't answer 200 or whose request fails, described, or undefined
+ * when they all answer 200. Each such page is also warned about, so a flaky route that recovers
+ * before the deadline still leaves a trace on the run instead of passing unseen.
+ */
+async function firstPageNotOk(fetchImpl, baseUrl, paths, warn) {
+  for (const path of paths) {
     const url = new URL(path, baseUrl).href;
-    const response = await get(fetchImpl, url);
+    let response;
+    try {
+      response = await get(fetchImpl, url);
+    } catch (error) {
+      const failure = `${url} failed (network error: ${errorMessage(error)})`;
+      warn(`::warning::${failure}`);
+      return failure;
+    }
     if (response.status !== 200) {
-      throw new Error(`${url} answered HTTP ${response.status} on version ${expectedVersion}; expected 200.`);
+      warn(`::warning::${await describeNotOk(url, response)}`);
+      return `${url} answered HTTP ${response.status}`;
     }
   }
+  return undefined;
+}
+
+/**
+ * A non-200 key-page answer with what tells its source apart: an HTML page that loads the app's
+ * Next.js assets is the app's own not-found page (a route matched wrongly), anything else came
+ * from the host (the deploy isn't serving that path yet).
+ */
+async function describeNotOk(url, response) {
+  const header = (name) => response.headers.get(name) ?? "none";
+  const contentType = header("content-type");
+  const body = await response.text().catch(() => "");
+  const fromApp = contentType.startsWith("text/html") && body.includes("/_next/");
+  const requestId = response.headers.get("x-nf-request-id") ?? header("x-request-id");
+  return (
+    `${url} answered HTTP ${response.status} (content-type: ${contentType}, cache-status: ${header("cache-status")}, ` +
+    `request id: ${requestId}, app ${response.status === 404 ? "not-found " : ""}page: ${fromApp ? "yes" : "no"}).`
+  );
 }
 
 /** Reads and validates the CLI's environment. Throws a message naming the bad variable. */
@@ -92,12 +140,13 @@ export async function main(env = process.env, log = console, options = {}) {
   try {
     const target = readCliEnv(env);
     log.log(`Waiting for ${target.baseUrl} to serve ${target.expectedVersion}...`);
-    await waitForDeploy({ ...options, ...target });
+    // `::warning::` lines go to the same log as the progress, where GitHub Actions annotates them.
+    await waitForDeploy({ warn: (message) => log.log(message), ...options, ...target });
     log.log(`${target.baseUrl} serves ${target.expectedVersion}, and its key pages answer 200.`);
     return 0;
   } catch (error) {
     // `::error::` makes GitHub Actions show the message as an annotation on the run.
-    log.error(`::error::${error instanceof Error ? error.message : String(error)}`);
+    log.error(`::error::${errorMessage(error)}`);
     return 1;
   }
 }

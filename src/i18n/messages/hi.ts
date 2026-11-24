@@ -44,4 +44,10 @@ export const hi: Catalogue = {
   "username.error.reserved": "यह यूज़रनेम आरक्षित है। कृपया कोई दूसरा चुनें।",
   "username.error.held": "यह यूज़रनेम हाल ही में इस्तेमाल हुआ था और अभी उपलब्ध नहीं है।",
   "username.error.taken": "यह यूज़रनेम पहले से किसी ने ले लिया है।",
+  "reader.documentTitle": "{writerName} की किताब: {bookTitle}",
+  "reader.pageDocumentTitle": "{chapterTitle}: {writerName} की किताब {bookTitle}",
+  "reader.byline": "लेखक: {writerName}",
+  "reader.writerPhoto": "{writerName} की तस्वीर",
+  "reader.publishedOn": "{date} को प्रकाशित",
+  "reader.empty": "इस किताब में अभी तक कुछ भी प्रकाशित नहीं हुआ है।",
 };

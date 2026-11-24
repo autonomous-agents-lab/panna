@@ -1,0 +1,37 @@
+.cover {
+  padding: var(--space-8) 0 var(--space-6);
+  border-bottom: 1px solid var(--color-paper-shade);
+  /* Long titles wrap instead of widening a phone screen. */
+  overflow-wrap: anywhere;
+}
+
+.title {
+  margin: 0;
+}
+
+.subtitle {
+  margin: var(--space-2) 0 0;
+  color: var(--color-ink-muted);
+}
+
+.writer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.photo {
+  border-radius: var(--radius-full);
+  object-fit: cover;
+}
+
+.byline {
+  margin: 0;
+  font-weight: 600;
+}
+
+.bio {
+  margin: var(--space-1) 0 0;
+  color: var(--color-ink-muted);
+}

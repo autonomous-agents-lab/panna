@@ -12,6 +12,8 @@ export type WaitForDeployOptions = {
   fetch?: Fetch;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  /** Receives a `::warning::` line for every key-page answer other than 200. */
+  warn?: (message: string) => void;
 };
 
 export function waitForDeploy(options: WaitForDeployOptions): Promise<void>;
@@ -25,5 +27,5 @@ export function readCliEnv(env: Record<string, string | undefined>): {
 export function main(
   env?: Record<string, string | undefined>,
   log?: Pick<Console, "log" | "error">,
-  options?: Pick<WaitForDeployOptions, "fetch" | "now" | "sleep" | "intervalMs">,
+  options?: Pick<WaitForDeployOptions, "fetch" | "now" | "sleep" | "intervalMs" | "warn">,
 ): Promise<number>;
