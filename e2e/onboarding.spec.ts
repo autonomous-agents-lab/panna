@@ -119,7 +119,7 @@ test.describe("onboarding in Hindi with local Supabase", { tag: LOCAL_SUPABASE_T
   test.use({ locale: "hi-IN" });
 
   test("errors are shown inline in Hindi and focus the first invalid field (AC-8)", async ({ page }) => {
-    await signInWithMagicLink(page, uniqueEmail());
+    await signInWithMagicLink(page, uniqueEmail(), { t: hi });
     await expect(page).toHaveURL("/onboarding");
     await expect(page.locator("html")).toHaveAttribute("lang", "hi");
     await page.getByLabel(hi["onboarding.username.label"]).fill(uniqueUsername());

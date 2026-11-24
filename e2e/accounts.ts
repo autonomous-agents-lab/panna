@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 
+import type { Catalogue } from "../src/i18n/catalogue";
 import { en } from "../src/i18n/messages/en";
 
 import { expect } from "./fixtures";
@@ -15,12 +16,19 @@ export function uniqueUsername(): string {
   return `e2e_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/** Asks for a magic link on /login (in English) and opens it; the caller checks where it lands. */
-export async function signInWithMagicLink(page: Page, address: string, path = "/login"): Promise<void> {
+/**
+ * Asks for a magic link on /login and opens it; the caller checks where it lands.
+ * `t` must be the catalogue the page renders in, which follows the browser locale.
+ */
+export async function signInWithMagicLink(
+  page: Page,
+  address: string,
+  { path = "/login", t = en }: { path?: string; t?: Catalogue } = {},
+): Promise<void> {
   await page.goto(path);
-  await page.getByLabel(en["auth.login.emailLabel"]).fill(address);
-  await page.getByRole("button", { name: en["auth.login.submit"] }).click();
-  await expect(page.getByRole("status")).toHaveText(en["auth.login.sent"].replace("{email}", address));
+  await page.getByLabel(t["auth.login.emailLabel"]).fill(address);
+  await page.getByRole("button", { name: t["auth.login.submit"] }).click();
+  await expect(page.getByRole("status")).toHaveText(t["auth.login.sent"].replace("{email}", address));
   await page.goto(firstLink((await latestEmailTo(address)).html));
 }
 
